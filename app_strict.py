@@ -9,6 +9,7 @@ import math
 import time
 from app_patches.imputation import impute_day
 from app_patches.train_ewma import predict_next
+from app_patches.data_quality import audit_stock_neg, detect_outliers_daily, clip_negatives
 
 import numpy as np
 import pandas as pd
@@ -291,6 +292,8 @@ with st.sidebar:
     enable_am = st.toggle("Cobertura mañana (AM)", value=bool(_am_on), help="Si está activo, cubre una fracción del esperado del día siguiente como stock objetivo.")
     am_frac = st.number_input("Fracción AM (0-1)", min_value=0.0, max_value=1.0, value=float(_am_frac), step=0.05)
     item_filter = st.text_input("Filtro por ítem (opcional)", value=str(_item_filter_def or ""))
+    fix_neg = st.toggle("Corregir stock negativo (clip a 0)", value=False)
+    cap_out = st.toggle("Capar outliers de ventas (IQR 1.5x)", value=False)
     enable_blocks = st.toggle("Modo bloques", value=False, help="Activa el cálculo de pedidos por bloques de entrega. Si está desactivado, los pedidos se calculan diariamente.")
     USE_IMPUTED = st.toggle(
         "Usar Demanda Imputada (quiebres)",
@@ -707,6 +710,27 @@ try:
     else:
         st.info("Cambios guardados. Pulsa 'Aplicar y recalcular' para actualizar resultados.")
 
+    # --- Calidad de datos: auditoría y fixes opcionales ---
+    if 'diario_df' in locals() and not diario_df.empty:
+        # Auditorías
+        neg = audit_stock_neg(diario_df, cols=("Stock_ini","Stock_fin","Stock") if "Stock" in diario_df.columns else ("Stock_ini","Stock_fin"))
+        outs = detect_outliers_daily(diario_df)
+
+        with st.expander("🧹 Auditoría de datos"):
+            c1,c2 = st.columns(2)
+            c1.metric("Filas stock negativo", len(neg))
+            c2.metric("Outliers de ventas (diario)", int(outs["is_outlier"].sum()) if "is_outlier" in outs.columns else 0)
+            st.dataframe(neg.head(100), use_container_width=True)
+            st.dataframe(outs[outs.get("is_outlier",False)].head(100), use_container_width=True)
+
+        # Fixes opcionales en caliente (no pisan el Excel)
+        if 'fix_neg' in locals() and fix_neg:
+            diario_df = clip_negatives(diario_df)
+        if 'cap_out' in locals() and cap_out and not outs.empty:
+            # recalcula ventas diarias capeadas solo para training/KPI; no toca cálculo de pedidos por hora
+            st.session_state["VENTAS_DIA_CAP"] = outs.assign(Ventas_dia=outs[["Ventas_dia","Hi"]].min(axis=1))
+    # --- fin calidad de datos ---
+
     if 'diario_df' in locals() and diario_df is not None and not diario_df.empty:
         df_diario_impute = diario_df.copy()
         cols_map = {"fecha":"Fecha", "hora":"Hora", "item":"Item", "stock":"Stock", "ventas":"Ventas"}
@@ -752,18 +776,41 @@ try:
         st.dataframe(df_esperado_dia.head(200), use_container_width=True)
         st.caption("Origen: CSV import/ESPERADO_DIA.csv si existe; si no, hoja Excel ESPERADO_DIA.")
 
-    if not df_esperado_dia.empty and not df_ventas_train.empty:
-        df_join = pd.merge(df_ventas_train, df_esperado_dia, on=["Fecha","Item"], how="inner")
-        df_kpi = df_join.copy()
-        df_kpi["ae"] = (df_kpi["Ventas_train"] - df_kpi["Esperado_dia"]).abs()
-        WAPE = float(df_kpi["ae"].sum()) / max(float(df_kpi["Esperado_dia"].sum()), 1e-9)
-        Bias = float((df_kpi["Ventas_train"] - df_kpi["Esperado_dia"]).mean())
-        df_kpi["fill"] = (df_kpi[["Ventas_train","Esperado_dia"]].min(axis=1) / df_kpi["Esperado_dia"]).clip(0,1)
-        Fill = float(df_kpi["fill"].mean())
-        with st.expander("📊 KPIs (Ventas_train vs Esperado_dia)"):
-            st.write({"WAPE": round(WAPE,4), "Bias": round(Bias,2), "FillRate": round(Fill,4)})
-    else:
-        st.info("Falta ESPERADO_DIA (Excel/CSV) o resumen de ventas para calcular KPIs.")
+    # --- KPI PANEL (rango + por ítem) ---
+    if 'df_ventas_train' in globals() and isinstance(df_ventas_train, pd.DataFrame) and not df_ventas_train.empty 
+       and 'df_esperado_dia' in globals() and isinstance(df_esperado_dia, pd.DataFrame) and not df_esperado_dia.empty:
+        v = df_ventas_train.copy(); e = df_esperado_dia.copy()
+        v["Fecha"] = pd.to_datetime(v["Fecha"], dayfirst=True, errors="coerce")
+        e["Fecha"] = pd.to_datetime(e["Fecha"], dayfirst=True, errors="coerce")
+
+        min_f, max_f = v["Fecha"].min(), v["Fecha"].max()
+        f_ini, f_fin = st.sidebar.date_input("Rango KPI", (min_f.date(), max_f.date()))
+        item_sel = st.sidebar.text_input("Filtrar ítem (contiene)", "")
+
+        j = pd.merge(v, e, on=["Fecha","Item"], how="inner")
+        m = j[(j["Fecha"]>=pd.to_datetime(f_ini)) & (j["Fecha"]<=pd.to_datetime(f_fin))].copy()
+        if item_sel.strip(): m = m[m["Item"].str.contains(item_sel, case=False, na=False)]
+
+        if not m.empty:
+            m["ae"]   = (m["Ventas_train"] - m["Esperado_dia"]).abs()
+            m["err"]  =  m["Ventas_train"] - m["Esperado_dia"]
+            m["fill"] = (m[[ "Ventas_train","Esperado_dia"]].min(axis=1) / m["Esperado_dia"] ).clip(0,1)
+
+            WAPE = float(m["ae"].sum()) / max(float(m["Esperado_dia"].sum()), 1e-9)
+            Bias = float(m["err"].mean()); Fill = float(m["fill"].mean())
+
+            c1,c2,c3 = st.columns(3)
+            c1.metric("WAPE", f"{WAPE:.2%}"); c2.metric("Bias (u)", f"{Bias:.0f}"); c3.metric("Fill-rate", f"{Fill:.2%}")
+
+            g = m.groupby("Item", as_index=False).agg(
+                WAPE=("ae",   lambda s: s.sum()/max(m.loc[s.index, "Esperado_dia"].sum(), 1e-9)),
+                Bias=("err", "mean"),
+                Fill=("fill","mean"),
+                N=("Item","count"),
+            ).sort_values("WAPE")
+            with st.expander("📊 KPI por ítem"):
+                st.dataframe(g, use_container_width=True)
+    # --- FIN KPI PANEL ---
 
     if not weekly_grid.empty:
         st.subheader("Prediccion semanal por item (unidades)")
