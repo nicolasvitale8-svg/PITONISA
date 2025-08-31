@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PythonISA2 Manifest",
+  "type": "object",
+  "required": ["version", "generated_at", "cfg", "logic"],
+  "properties": {
+    "version": {"type": "string"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "cfg": {
+      "type": "object",
+      "required": ["target", "multiple", "enable_am", "am_frac", "item_filter", "delivery_week"],
+      "properties": {
+        "target": {"type": "number", "minimum": 0},
+        "multiple": {"type": "integer", "minimum": 1},
+        "enable_am": {"type": "boolean"},
+        "am_frac": {"type": "number", "minimum": 0, "maximum": 1},
+        "item_filter": {"type": "string"},
+        "delivery_week": {
+          "type": "array",
+          "items": {"type": "integer", "enum": [0,1]},
+          "minItems": 7,
+          "maxItems": 7
+        }
+      }
+    },
+    "logic": {
+      "type": "object",
+      "properties": {
+        "mode": {"type": "string", "enum": ["daily", "blocks", "auto"]},
+        "date_format": {"type": "string"},
+        "state_order": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}
