@@ -1,0 +1,32 @@
+name: smokes
+on: [push, pull_request]
+jobs:
+  run-smokes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: |
+          python -m pip install -U pip
+          pip install pandas streamlit openpyxl
+      - name: Run smoke tests
+        run: |
+          python - << 'PY'
+from app_patches.smoke_tests import run_smokes
+from app_patches.smoke_wrapper import build_weekly_orders_smoke
+from app_strict import read_delivery_cfg
+import pandas as pd
+def seed_df_builder(multiplo=1, week_bits=None):
+    fechas = pd.date_range("2025-08-25","2025-08-31",freq="D")
+    esperado = [15,14,15,14,15,14,15]
+    df = pd.DataFrame({"fecha":fechas,"esperado":esperado,"stock_ini":[11]+[None]*6})
+    class Cfg: CFG_TARGET=0; CFG_MULTIPLO=multiplo; CFG_ENABLE_AM_COVERAGE=True; CFG_AM_FRAC=0.5
+    cfg = Cfg(); overrides = {}
+    wb = week_bits if week_bits else [1,1,1,1,1,1,1]
+    cal = read_delivery_cfg({"CFG_DELIVERY_WEEK":wb}, [])
+    return df, cfg, overrides, cal
+print(run_smokes(build_weekly_orders_smoke, seed_df_builder))
+PY
