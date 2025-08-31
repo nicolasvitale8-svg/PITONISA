@@ -145,6 +145,44 @@ def audit_dmY_many(targets: List[Tuple[pd.DataFrame, str, str]]) -> Tuple[List[D
     return report, detail
 
 
+# ---------------- Audit helpers (HH:MM) ----------------
+def _is_HM_series(s: pd.Series) -> pd.Series:
+    t = s.astype(str).str.strip()
+    # Regex for HH:MM format
+    return t.str.match(re.compile(r"^\s*([01]?[0-9]|2[0-3]):[0-5][0-9]\s*$"))
+
+def audit_HM(df: pd.DataFrame, sheet_name: str, col_name: str, max_examples: int = 5) -> Dict[str, object]:
+    if df is None or df.empty or col_name not in df.columns:
+        return {"sheet": sheet_name, "column": col_name, "total": 0, "bad": 0, "examples": []}
+    col = df[col_name]
+    ok = _is_HM_series(col)
+    bad_mask = (~ok).fillna(True)
+    bad_count = int(bad_mask.sum())
+    total = int(len(col))
+    examples = col[bad_mask].dropna().astype(str).unique().tolist()[:max_examples]
+    return {"sheet": sheet_name, "column": col_name, "total": total, "bad": bad_count, "examples": examples}
+
+def audit_HM_many(targets: List[Tuple[pd.DataFrame, str, str]]) -> Tuple[List[Dict[str, object]], pd.DataFrame]:
+    report: List[Dict[str, object]] = []
+    rows: List[pd.DataFrame] = []
+    for df, sheet, col in targets:
+        if df is None or df.empty or col not in df.columns:
+            report.append({"sheet": sheet, "column": col, "total": 0, "bad": 0, "examples": []})
+            continue
+        res = audit_HM(df, sheet, col)
+        report.append(res)
+        if res["bad"] > 0:
+            mask = (~_is_HM_series(df[col])).fillna(True)
+            tmp = df.loc[mask, [col]].copy()
+            tmp.insert(0, "sheet", sheet)
+            tmp.insert(1, "column", col)
+            tmp = tmp.rename(columns={col: "value"})
+            tmp.insert(3, "row_index", tmp.index)
+            rows.append(tmp)
+    detail = pd.concat(rows, ignore_index=True) if rows else pd.DataFrame(columns=["sheet", "column", "value", "row_index"])
+    return report, detail
+
+
 def _norm_str(s: str) -> str:
     try:
         import unicodedata as _ud
@@ -990,6 +1028,7 @@ def build_weekly_orders(
     target: float = 0.0,
     enable_am: bool = True,
     am_frac: float = 0.5,
+    enable_blocks: Optional[bool] = None,
 ) -> pd.DataFrame:
     try:
         xls = pd.ExcelFile(io.BytesIO(xls_bytes))
@@ -1056,7 +1095,13 @@ def build_weekly_orders(
     order_multiple = int(max(1, order_multiple))
     target = float(max(0.0, target))
     cal = _read_delivery_calendar_from_excel(xls_bytes)
-    use_blocks = (0 in cal.week_bits) or (len(cal.exceptions) > 0)
+    
+    use_blocks = False
+    if enable_blocks is not None:
+        use_blocks = enable_blocks
+    else:
+        use_blocks = (0 in cal.week_bits) or (len(cal.exceptions) > 0)
+
     for ridx, row in items.iterrows():
         item = str(row["Item"]) 
         key = normalize_item_name(item)
@@ -1443,6 +1488,7 @@ with st.sidebar:
     enable_am = st.toggle("Cobertura mañana (AM)", value=bool(_am_on), help="Si está activo, cubre una fracción del esperado del día siguiente como stock objetivo.")
     am_frac = st.number_input("Fracción AM (0-1)", min_value=0.0, max_value=1.0, value=float(_am_frac), step=0.05)
     item_filter = st.text_input("Filtro por ítem (opcional)", value=str(_item_filter_def or ""))
+    enable_blocks = st.toggle("Modo bloques", value=False, help="Activa el cálculo de pedidos por bloques de entrega. Si está desactivado, los pedidos se calculan diariamente.")
     # Calendario semanal de entregas (CFG!B8:H8)
     week_bits_default = [1, 1, 1, 1, 1, 1, 1]
     try:
@@ -1500,8 +1546,7 @@ with st.sidebar:
     st.divider()
     st.subheader("CSV (opcional)")
     st.caption("Importa un CSV (Fecha, Item, Esperado, Stock inicial opcional).")
-    csv_file = st.file_uploader("Subir CSV", type=["csv"]) 
-    enable_blocks = st.toggle("Modo bloques sin retiro (usa columna 'Retira?')", value=False)
+    csv_file = st.file_uploader("Subir CSV", type=["csv"])
 
     # Notas / Especificación (sidebar)
     def load_notes_md(path: str = "docs/NOTAS_PITONISA.md") -> str:
@@ -1652,6 +1697,52 @@ try:
 
     # Pestaña opcional de Notas
     _tabs = st.tabs(["Pedidos", "Reporte", "Notas"])
+    with _tabs[1]:
+        st.subheader("Auditoría de Formatos")
+        if st.button("Correr Auditoría de Fechas (D/M/YYYY)"):
+            with st.spinner("Auditando fechas..."):
+                sheets_to_audit = [("VENTA_DIARIA", "Fecha"), ("DIARIO", "Fecha"), ("PEDIDO_CP", "Fecha")]
+                targets = []
+                for sheet_name, col_name in sheets_to_audit:
+                    try:
+                        df = pd.read_excel(io.BytesIO(file_bytes), sheet_name=sheet_name)
+                        df = std_cols(df)
+                        targets.append((df, sheet_name, col_name))
+                    except Exception:
+                        targets.append((pd.DataFrame(), sheet_name, col_name))
+                
+                report, detail = audit_dmY_many(targets)
+                st.write("Resultados de la Auditoría de Fechas:")
+                st.dataframe(pd.DataFrame(report))
+                if not detail.empty:
+                    st.write("Detalle de errores en fechas:")
+                    st.dataframe(detail)
+
+        if st.button("Correr Auditoría de Horas (HH:MM)"):
+            with st.spinner("Auditando horas..."):
+                # Assuming 'HORA' is the column to audit. This can be made more flexible.
+                sheets_to_audit = [("VENTA_DIARIA", "HORA"), ("DIARIO", "HORA")]
+                targets = []
+                for sheet_name, col_name in sheets_to_audit:
+                    try:
+                        df = pd.read_excel(io.BytesIO(file_bytes), sheet_name=sheet_name)
+                        df = std_cols(df)
+                        if col_name in df.columns:
+                            targets.append((df, sheet_name, col_name))
+                    except Exception:
+                        # Sheet might not exist, or other reading errors
+                        pass
+                
+                if targets:
+                    report, detail = audit_HM_many(targets)
+                    st.write("Resultados de la Auditoría de Horas:")
+                    st.dataframe(pd.DataFrame(report))
+                    if not detail.empty:
+                        st.write("Detalle de errores en horas:")
+                        st.dataframe(detail)
+                else:
+                    st.info("No se encontraron columnas 'HORA' en las hojas VENTA_DIARIA o DIARIO para auditar.")
+
     with _tabs[2]:
         st.markdown(load_notes_md(), unsafe_allow_html=False)
 

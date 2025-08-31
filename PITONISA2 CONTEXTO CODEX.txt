@@ -2315,7 +2315,1731 @@ detalle abajo.")
 else:
     st.success("Fechas OK: todas cumplen D/M/YYYY.")
 
- Implementing date pattern audits (12s • Esc to interrupt)
+proposed patch to 1 file (+39 -0)
+  └ C:\Users\nicol\OneDrive\Desktop\PITONISA2\app_strict.py
+    108
+    109   +# ---------------- Audit helpers (D/M/YYYY) ----------------
+    110   +def _is_dmY_series(s: pd.Series) -> pd.Series:
+    111   +    t = s.astype(str).str.strip()
+    112   +    return t.str.match(DATE_REGEX)
+    113   +
+    114   +
+    115   +def audit_dmY(df: pd.DataFrame, sheet_name: str, col_name: str, max_examples: int = 5) -> Dict[str, object]:
+    116   +    if df is None or df.empty or col_name not in df.columns:
+    117   +        return {"sheet": sheet_name, "column": col_name, "total": 0, "bad": 0, "examples": []}
+    118   +    col = df[col_name]
+    119   +    ok = _is_dmY_series(col)
+    120   +    bad_mask = (~ok).fillna(True)
+    121   +    bad_count = int(bad_mask.sum())
+    122   +    total = int(len(col))
+    123   +    examples = col[bad_mask].dropna().astype(str).unique().tolist()[:max_examples]
+    124   +    return {"sheet": sheet_name, "column": col_name, "total": total, "bad": bad_count, "examples": examples}
+    125   +
+           me]:
+    128   +    report: List[Dict[str, object]] = []
+    129   +    rows: List[pd.DataFrame] = []
+    130   +    for df, sheet, col in targets:
+    131   +        if df is None or df.empty or col not in df.columns:
+    132   +            report.append({"sheet": sheet, "column": col, "total": 0, "bad": 0, "examples": []})
+    133   +            continue
+    134   +        res = audit_dmY(df, sheet, col)
+
+
+user
+OBJETIVO
+- Guardar el texto pegado como documentación versionada.
+- Exponerlo en la app (botón “Notas / Especificación”) con búsqueda.
+- Registrar el cambio en CHANGELOG.
+
+ARCHIVOS/ACCIONES
+1) Crear docs/NOTAS_PITONISA.md con el contenido pegado.
+2) Agregar en la app un panel que renderice ese Markdown.
+3) Indexar (búsqueda simple) por título y secciones H2/H3.
+4) Anotar en CHANGELOG.md.
+
+CONTENIDO DEL DOCUMENTO
+--- 8< --- docs/NOTAS_PITONISA.md
+# Notas / Especificación – PITONISA
+
+**Fecha:** {{hoy}}
+**Autor:** Codex
+**Origen:** contenido pegado por el usuario
+
+## Contenido
+<<TU_TEXTO_AQUI>>
+--- 8< ---
+
+UI (Streamlit) – agregar donde cargás el sidebar o una pestaña “Docs”:
+--- 8< --- app_strict.py (fragmento)
+import streamlit as st
+from pathlib import Path
+
+def load_notes_md(path="docs/NOTAS_PITONISA.md") -> str:
+    p = Path(path)
+    return p.read_text(encoding="utf-8") if p.exists() else "# (Sin notas)n"
+
+with st.sidebar.expander(" Notas / Especificación"):
+    st.markdown(load_notes_md(), unsafe_allow_html=False)
+
+# (Opcional) Pestaña central:
+tab_docs = st.tabs(["Pedidos", "Reporte", "Notas"])[2]
+with tab_docs:
+    st.markdown(load_notes_md(), unsafe_allow_html=False)
+
+if q:
+    import re
+    md = load_notes_md()
+    hits = [l for l in md.splitlines() if re.search(re.escape(q), l, re.IGNORECASE)]
+    if hits:
+        st.sidebar.write("Coincidencias:")
+        for h in hits[:20]:
+            st.sidebar.write("- ", h[:120])
+    else:
+        st.sidebar.caption("Sin coincidencias.")
+
+--- 8< ---
+
+CHANGELOG
+--- 8< --- CHANGELOG.md (añadir entrada)
+## {{hoy}} – Docs: NOTAS_PITONISA.md
+- Se incorporó documentación pegada por el usuario (1453 chars aprox).
+- Disponible en la app vía “ Notas / Especificación” (sidebar y pestaña).
+--- 8< ---
+
+VALIDACIONES
+- Guardar el archivo en UTF-8.
+- Si ya existe docs/NOTAS_PITONISA.md, anexar al final con un separador ---.
+- Evitar HTML peligroso en render (usar unsafe_allow_html=False).
+
+proposed patch to 1 file (+57 -0)
+  └ C:\Users\nicol\OneDrive\Desktop\PITONISA2\docs/NOTAS_PITONISA.md
+    1     +# Notas / Especificación – PITONISA
+    2     +
+    3     +**Fecha:** 2025-08-30
+    4     +**Autor:** Codex
+    5     +**Origen:** contenido pegado por el usuario
+    6     +
+    7     +## Contenido
+    8     +
+    9     +### OBJETIVO – Parseo estricto de fechas
+    10    +
+    11    +- Parsear SIEMPRE como D/M/YYYY (día/mes/año) sin heurísticas ni dateutil.
+    12    +- Quitar el warning "Could not infer format..." y acelerar el parseo.
+    13    +- Mantener salida consistente dd/mm/aaaa para mostrar.
+    14    +
+    15    +#### Helpers estrictos
+    16    +```
+    17    +DATE_FMT = "%d/%m/%Y"
+    18    +DATE_REGEX = re.compile(r"^\s*\d{1,2}/\d{1,2}/\d{4}\s*$")
+    19    +
+    20    +def parse_fecha_dmY(s: pd.Series) -> pd.Series:
+    21    +    t = _clean_str_series(s)
+    22    +    ok = t.str.match(DATE_REGEX)
+    23    +    out = pd.Series(pd.NaT, index=t.index, dtype="datetime64[ns]")
+    24    +    if ok.any():
+    25    +        out.loc[ok] = pd.to_datetime(t[ok], format=DATE_FMT, errors="coerce")
+    26    +    return out
+    27    +
+    28    +def format_fecha_dmY(dt_series: pd.Series) -> pd.Series:
+    29    +    return dt_series.dt.strftime("%d/%m/%Y")
+    30    +```
+    31    +
+    32    +### OBJETIVO – Auditoría de formato de fechas
+    35    +- Mostrar aviso en UI con conteo por hoja/columna y ejemplos.
+    36    +- Permitir descargar CSV con todos los casos detectados para corrección.
+    37    +- Reusar DATE_REGEX/DATE_FMT existentes y NO cambiar el parseo estricto.
+    38    +
+    39    +#### Helpers de auditoría
+    40    +```
+    41    +def _is_dmY_series(s: pd.Series) -> pd.Series:
+    42    +    t = s.astype(str).str.strip()
+    43    +    return t.str.match(DATE_REGEX)
+    44    +
+    45    +def audit_dmY(df: pd.DataFrame, sheet_name: str, col_name: str, max_examples: int = 5) -> dict:
+    46    +    if col_name not in df.columns:
+    47    +        return {"sheet": sheet_name, "column": col_name, "total": 0, "bad": 0, "examples": []}
+    48    +    col = df[col_name]
+    49    +    ok = _is_dmY_series(col)
+    50    +    bad_mask = (~ok).fillna(True)
+    51    +    bad_count = int(bad_mask.sum())
+    52    +    total = int(len(col))
+    53    +    examples = col[bad_mask].dropna().astype(str).unique().tolist()[:max_examples]
+    54    +    return {"sheet": sheet_name, "column": col_name, "total": total, "bad": bad_count, "examples": examples}
+    55    +```
+    56    +
+    57    +---
+
+
+patch approval decision: Approved
+
+✏️ Applying patch
+
+✓ Applied patch
+  └ Success. Updated the following files:
+    A docs/NOTAS_PITONISA.md
+
+proposed patch to 1 file (+25 -0)
+  └ C:\Users\nicol\OneDrive\Desktop\PITONISA2\app_strict.py
+    1467
+    1468  +    # Notas / Especificación (sidebar)
+    1471  +        try:
+    1472  +            return p.read_text(encoding="utf-8") if p.exists() else "# (Sin notas)\n"
+    1473  +        except Exception:
+    1474  +            return "# (Sin notas)\n"
+    1475  +
+    1476  +    with st.sidebar.expander(" Notas / Especificación"):
+    1477  +        st.markdown(load_notes_md(), unsafe_allow_html=False)
+    1478  +        q = st.text_input("Buscar en notas", key="notes_query")
+    1480  +            try:
+    1481  +                import re as _re
+    1487  +                        st.write("- ", h[:120])
+    1488  +                else:
+    1492  +
+    1493
+
+
+✏️ Applying patch
+
+✓ Applied patch
+  └ Success. Updated the following files:
+    M app_strict.py
+
+✔ You approved codex to run pwsh -NoLogo -NoProfile -Command '$c=Get-Content -Path '"'app_strict.py'; ("'$c |
+Select-String -SimpleMatch -Pattern '"'Tabla operativa (CODEX)').LineNumber" this time
+  ✓ ⌨️ pwsh -NoLogo -NoProfile -Command '$c=Get-Content -Path '"'app_strict.py'; ("'$c | Select-String -SimpleMatch
+-Pattern '"'Tabla operativa (CODEX)').LineNumber"
+
+✔ You approved codex to run pwsh -NoLogo -NoProfile -Command '$c=Get-Content -Path '"'app_strict.py'; 1600..1640 |
+ForEach-Object { "'$_.ToString() + '"': ' + "'$c[$_-1] }' this time
+  ✓ ⌨️ pwsh -NoLogo -NoProfile -Command '$c=Get-Content -Path '"'app_strict.py'; 1600..1640 | ForEach-Object
+{ "'$_.ToString() + '"': ' + "'$c[$_-1] }'
+
+✔ You approved codex to run pwsh -NoLogo -NoProfile -Command '$start=1600; $end=1640; $c=Get-Content -Path
+'"'app_strict.py'; ("'$start..$end | ForEach-Object { $_.ToString() + '"':' + "'$c[$_-1] }) -join "`n" | Write-Output'
+this time
+  ✓ ⌨️ pwsh -NoLogo -NoProfile -Command '$start=1600; $end=1640; $c=Get-Content -Path '"'app_strict.py'; ("'$start..$end
+| ForEach-Object { $_.ToString() + '"':' + "'$c[$_-1] }) -join "`n" | Write-Output'
+
+    1614
+    1615  +    # Pestaña opcional de Notas
+    1616  +    _tabs = st.tabs(["Pedidos", "Reporte", "Notas"])
+    1617  +    with _tabs[2]:
+    1618  +        st.markdown(load_notes_md(), unsafe_allow_html=False)
+    1619  +
+    1620       s_yesterday, found_y = yesterday_state(ventas_df, target_ts)
+
+patch approval decision: Approved
+
+  └ Success. Updated the following files:
+    M app_strict.py
+
+proposed patch to 1 file (+4 -0)
+  └ C:\Users\nicol\OneDrive\Desktop\PITONISA2\CHANGELOG.md
+    1     +## 2025-08-30 – Docs: NOTAS_PITONISA.md
+    2     +- Se incorporó documentación pegada por el usuario (aprox.).
+    3     +- Disponible en la app vía “Notas / Especificación” (sidebar y pestaña).
+    4     +
+
+
+patch approval decision: Approved
+
+✏️ Applying patch
+
+✓ Applied patch
+  └ Success. Updated the following files:
+    A CHANGELOG.md
+
+✔ You approved codex to run pwsh -NoLogo -NoProfile -Command "python -m py_compile 'app_strict.py'; if ("'$?) { '"'OK' }
+else { 'FAIL' }" this time
+
+>_
+  ✓ ⌨️ pwsh -NoLogo -NoProfile -Command "python -m py_compile 'app_strict.py'; if ("'$?) { '"'OK' } else { 'FAIL' }"
+
+
+user
+OBJETIVO
+- Documentar y versionar PythonISA 2 de forma consistente (sin “pintar arriba”).
+- Capturar el estado ACTUAL (lo ya implementado) + decisiones + backlog + tests.
+- Añadir a la app un export de manifiesto JSON con la config/fórmulas vigentes.
+
+ENTREGABLES (carpetas/archivos)
+- docs/
+  - 00-CHARter.md
+  - 10-ARCHITECTURE.md
+  - 20-DATA_MODEL.md
+  - 30-LOGIC.md
+  - 40-UI.md
+  - 50-OPERATIONS.md
+  - 60-TEST_PLAN.md
+  - 70-ADRs/
+      - ADR-0001-fechas-dmY.md
+      - ADR-0002-entregas-bloques.md
+      - ADR-0003-cobertura-AM.md
+      - ADR-0004-target-override-por-dia.md
+      - ADR-0005-pedido-semanal-dinamico.md
+      - (placeholder) ADR-0006-imputacion-quiebre.md
+- CHANGELOG.md (inicia con “2025-08-30 — Base v0.2”)
+- ROADMAP.md (épicas, historias, prioridades)
+- manifest/
+  - schema.manifest.json (esquema)
+  - sample.manifest.json (ejemplo generado)
+- app_patches/
+  - export_manifest.py (módulo para la app)
+  - smoke_tests.py (pruebas rápidas)
+
+ACCIONES
+1) Crear archivos anteriores con el contenido de abajo.
+2) Integrar export_manifest.py en la app (botón “Exportar manifiesto”).
+3) Añadir “Docs” como pestaña en UI (render docs/*.md).
+4) Correr smoke tests y dejar resultados en consola/UI.
+
+CONTENIDO
+
+--- docs/00-CHARter.md ---
+# PythonISA 2 — Project Charter
+**Propósito:** Proyectar ventas y generar pedidos automáticos con reglas operativas (target, múltiplo, calendario de
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+proposed patch to 1 file (+35 -0)
+  └ C:\Users\nicol\OneDrive\Desktop\PITONISA2\manifest/schema.manifest.json
+    1     +{
+    2     +  "$schema": "http://json-schema.org/draft-07/schema#",
+    3     +  "title": "PythonISA2 Manifest",
+    4     +  "type": "object",
+    5     +  "required": ["version", "generated_at", "cfg", "logic"],
+    6     +  "properties": {
+    7     +    "version": {"type": "string"},
+    8     +    "generated_at": {"type": "string", "format": "date-time"},
+    9     +    "cfg": {
+    10    +      "type": "object",
+
+
+
+proposed patch to 1 file (+66 -0)
+  └ C:\Users\nicol\OneDrive\Desktop\PITONISA2\app_patches/export_manifest.py
+    1     +import io
+    2     +from datetime import datetime
+    3     +from typing import Dict, Any, List
+    4     +
+    5     +import pandas as pd
+    6     +
+    7     +DATE_FMT = "%d/%m/%Y"
+    8     +
+    9     +
+    10    +def _read_cfg(xls: pd.ExcelFile) -> Dict[str, Any]:
+    11    +    target = 0.0; multiple = 1; enable_am = True; am_frac = 0.5; item_filter = ""
+    12    +    week = [1, 1, 1, 1, 1, 1, 1]
+    13    +    try:
+    14    +        if "CFG" in xls.sheet_names:
+    15    +            df = xls.parse("CFG", header=None)
+    16    +            if df.shape[0] > 1 and df.shape[1] > 1:
+    17    +                target = float(pd.to_numeric(df.iloc[1, 1], errors="coerce") or 0.0)
+    18    +            if df.shape[0] > 2 and df.shape[1] > 1:
+    19    +                multiple = int(pd.to_numeric(df.iloc[2, 1], errors="coerce") or 1)
+    20    +            if df.shape[0] > 3 and df.shape[1] > 1:
+    21    +                v = df.iloc[3, 1]
+    22    +                try:
+    23    +                    enable_am = bool(int(v))
+    24    +                except Exception:
+    25    +                    enable_am = True
+    26    +            if df.shape[0] > 4 and df.shape[1] > 1:
+    27    +                am_frac = float(pd.to_numeric(df.iloc[4, 1], errors="coerce") or 0.5)
+    28    +            if df.shape[0] > 5 and df.shape[1] > 1:
+    29    +                item_filter = str(df.iloc[5, 1] or "")
+    30    +            # B8:H8
+    31    +            if df.shape[0] > 7 and df.shape[1] > 7:
+    32    +                vals = df.iloc[7, 1:8].tolist()
+    33    +                week = [1 if int(pd.to_numeric(v, errors="coerce") or 1) == 1 else 0 for v in vals]
+    34    +    except Exception:
+    35    +        pass
+    36    +    return {
+    37    +        "target": max(0.0, float(target)),
+    38    +        "multiple": max(1, int(multiple)),
+    39    +        "enable_am": bool(enable_am),
+    40    +        "am_frac": float(min(1.0, max(0.0, am_frac))),
+    41    +        "item_filter": item_filter or "",
+    42    +        "delivery_week": week if len(week) == 7 else [1, 1, 1, 1, 1, 1, 1],
+
+
+user
+codex
+Mostrá el árbol de carpetas/archivos creado y las primeras 5 líneas de:
+- docs/00-CHARter.md
+- docs/30-LOGIC.md
+- docs/70-ADRs/ADR-0002-entregas-bloques.md
+- manifest/schema.manifest.json
+- app_patches/export_manifest.py
+No expliques, solo lista árbol y snippets.
+Parseo:
+- Fechas: **estricto D/M/YYYY** (parse_fecha_dmY)
+- Horas: **estricto HH:MM** (parse_hora_HM)
+
+--- docs/30-LOGIC.md ---
+# Lógica de cálculo (resumen formal)
+## Diario (entrega cada día)
+1. Stock_ini[d] = d==0 ? inventario_real : Stock_fin[d-1]
+2. Target_auto[d] = CFG_ENABLE_AM_COVERAGE ? CFG_AM_FRAC * Esperado[d+1] : 0
+3. Target_efectivo[d] = override(Target_día[d]) || MAX(CFG_TARGET, Target_auto[d])
+4. Pedido_bruto[d] = MAX(0, Target_efectivo[d] + Esperado[d] − Stock_ini[d])
+5. Pedido[d] = ROUNDUP(Pedido_bruto[d] / MAX(1, CFG_MULTIPLO)) * MAX(1, CFG_MULTIPLO)
+6. Stock_fin[d] = Stock_ini[d] + Pedido[d] − Esperado[d]
+## Bloques sin entrega
+- is_delivery por calendario semanal + excepciones.
+- Bloque B = d..(prox−1) con Retira? TRUE en d.
+- Demanda_B = SUM(Esperado[d..prox−1])
+- Target_prox(B) = Target_efectivo[prox−1]
+- Pedido_bruto_B = MAX(0, Target_prox(B) + Demanda_B − Stock_ini[d])
+- Pedido_B = redondeo a múltiplo (una vez) → asignar solo en d; intermedios pedido=0.
+## Pedido semanal
+- Suma de Pedido (aplica filtro por ítem si está definido).
+## Checks
+- Identidad semanal: SUM(Pedido) - SUM(Esperado) - (SF_ult - SI_prim) ≥ 0
+- Cobertura AM (si ON): SF[d] ≥ CFG_AM_FRAC * Esperado[d+1]
+- Intermedios de bloque: Pedido=0
+
+--- docs/40-UI.md ---
+# UI / Sidebar
+- Controles: Target, Múltiplo, Cobertura AM (toggle), Fracción AM, Filtro por ítem.
+- Calendario 1/0 con etiquetas **L M Mi J V S D**.
+- Botones: Guardar CFG, Reset CFG, Exportar manifiesto, Smoke tests.
+- “Pedido sugerido semanal (unidades)” refleja la columna Pedido calculada.
+
+--- docs/50-OPERATIONS.md ---
+# Operación
+- Importar CSV/XLSX → normalización encabezados → parseo estricto fechas/horas → mapeo columnas.
+- Rango nombrado CFG_DELIVERY_WEEK se persiste (B7:H8).
+- Excepciones por fecha pisan calendario semanal.
+- Export: manifest/sample.manifest.json (ver esquema).
+
+--- docs/60-TEST_PLAN.md ---
+# Plan de pruebas
+## Smoke A (diario, multiplo=1)
+Esperado SUM Pedido = 91 para 25→31 Ago con SI[25]=11 y Esperado 15/14/… (AM ON, frac 0.5).
+## Smoke B (diario, multiplo=6)
+Esperado SUM Pedido = 96.
+## Smoke C (bloques M/MI/V, multiplo=1)
+Esperado SUM Pedido = 91.
+## Smoke D (bloques M/MI/V, multiplo=6)
+Esperado SUM Pedido = 96.
+Además:
+- Fechas formato D/M/YYYY sin warnings.
+- Intermedios de bloque con Pedido=0.
+- Identidad semanal ≥ 0.
+
+--- docs/70-ADRs/ADR-0001-fechas-dmY.md ---
+# ADR-0001 — Parseo estricto D/M/YYYY
+**Fecha:** 2025-08-30
+**Contexto:** warning de pandas por formatos heterogéneos.
+**Decisión:** usar parse_fecha_dmY (sin dateutil) y parse_hora_HM.
+**Consecuencia:** parseo rápido/consistente; valores fuera de formato → NaT + auditoría.
+
+--- docs/70-ADRs/ADR-0002-entregas-bloques.md ---
+# ADR-0002 — Calendario semanal 1/0 + bloques
+**Decisión:** CFG_DELIVERY_WEEK + ENTREGAS_EXC; pedido una vez por bloque; redondeo a múltiplo al inicio.
+
+--- docs/70-ADRs/ADR-0003-cobertura-AM.md ---
+# ADR-0003 — Cobertura AM
+**Decisión:** Target_auto[d]=CFG_AM_FRAC*Esperado[d+1]; override por día opcional; usar MAX(CFG_TARGET, Target_auto).
+
+--- docs/70-ADRs/ADR-0004-target-override-por-dia.md ---
+# ADR-0004 — Target por día (override)
+**Decisión:** hoja TARGET_DIA; el bloque toma el target del último día del bloque.
+
+--- docs/70-ADRs/ADR-0005-pedido-semanal-dinamico.md ---
+# ADR-0005 — Pedido semanal dinámico
+**Decisión:** suma la columna Pedido calculada; respeta filtros y CFG.
+
+--- docs/70-ADRs/ADR-0006-imputacion-quiebre.md ---
+# ADR-0006 — Imputación de demanda por quiebre (pendiente)
+**Decisión (diseño):** detectar spans stock=0 y estimar demanda perdida con perfil intradía + same-day scale.
+
+--- CHANGELOG.md ---
+## 2025-08-30 — v0.2.0 (baseline)
+- Cálculo diario + bloques, cobertura AM, override por día, parseo D/M/YYYY, calendario semanal+EXC, filtro por ítem,
+Pedido semanal dinámico.
+- Añadidos tests Smoke A–D y export de manifiesto.
+- (Diseñado) Módulo de imputación de quiebre (pendiente de integrar).
+
+--- ROADMAP.md ---
+# Roadmap
+- v0.2.1: Toggle “Modo bloques” en CFG; preset martes=0; auditoría de horas HH:MM.
+- v0.3.0: Integración imputation.py (Demanda Imputada) + métricas (fill-rate).
+- v0.4.0: Persistencia SQLite + tablero KPIs (MAE/WAPE/Bias).
+- v1.0.0: empaquetado y release notes.
+
+--- manifest/schema.manifest.json ---
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "title":"PythonISA Manifest",
+  "type":"object",
+  "properties":{
+    "version":{"type":"string"},
+    "generated_at":{"type":"string"},
+    "cfg":{
+      "type":"object",
+      "properties":{
+        "CFG_TARGET":{"type":"number"},
+        "CFG_MULTIPLO":{"type":"integer"},
+        "CFG_ENABLE_AM_COVERAGE":{"type":"boolean"},
+        "CFG_AM_FRAC":{"type":"number"},
+        "CFG_ITEM_FILTER":{"type":"string"},
+        "CFG_DELIVERY_WEEK":{"type":"array","items":{"type":"integer"}}
+      },
+      "required":["CFG_TARGET","CFG_MULTIPLO","CFG_ENABLE_AM_COVERAGE","CFG_AM_FRAC","CFG_DELIVERY_WEEK"]
+    },
+    "calculated_logic":{
+      "type":"object",
+      "properties":{
+        "mode":{"type":"string","enum":["daily","blocks-auto","blocks-forced"]},
+        "formulas":{"type":"object"}
+      }
+    }
+  },
+  "required":["version","generated_at","cfg","calculated_logic"]
+}
+
+--- app_patches/export_manifest.py ---
+import json, datetime as dt
+
+def export_manifest(cfg:dict, mode:str, formulas:dict, path="manifest/sample.manifest.json"):
+    doc = {
+        "version":"0.2.0",
+        "generated_at": dt.datetime.utcnow().isoformat(),
+        "cfg":{
+            "CFG_TARGET": cfg.get("CFG_TARGET",0),
+            "CFG_MULTIPLO": cfg.get("CFG_MULTIPLO",1),
+            "CFG_ENABLE_AM_COVERAGE": bool(cfg.get("CFG_ENABLE_AM_COVERAGE", True)),
+            "CFG_AM_FRAC": float(cfg.get("CFG_AM_FRAC",0.5)),
+            "CFG_ITEM_FILTER": cfg.get("CFG_ITEM_FILTER",""),
+            "CFG_DELIVERY_WEEK": [int(x) for x in cfg.get("CFG_DELIVERY_WEEK",[1,1,1,1,1,1,1])]
+        },
+        "calculated_logic":{
+            "mode": mode,
+            "formulas": formulas
+        }
+    }
+    with open(path,"w",encoding="utf-8") as f:
+        json.dump(doc, f, ensure_ascii=False, indent=2)
+    return path
+
+# Ejemplo formulas:
+FORMULAS = {
+  "daily":{
+    "Pedido_bruto":"MAX(0, Target_ef + Esperado - Stock_ini)",
+    "Pedido":"ROUNDUP(Pedido_bruto/MULT) * MULT",
+    "Stock_fin":"Stock_ini + Pedido - Esperado",
+    "Target_auto":"AM_ON ? AM_FRAC * Esperado[d+1] : 0",
+    "Target_ef":"override(Target_dia) || MAX(CFG_TARGET, Target_auto)"
+    "Demanda_B":"SUM(Esperado[d..prox-1])",
+    "Target_prox":"Target_ef[prox-1]",
+    "Pedido_bruto_B":"MAX(0, Target_prox + Demanda_B - Stock_ini[d])",
+    "Pedido_B":"ROUNDUP(Pedido_bruto_B/MULT) * MULT (solo en d)"
+  }
+}
+
+--- app_patches/smoke_tests.py ---
+def run_smokes(calc_fn, seed_df_builder):
+    """
+    calc_fn(df_item, cfg, target_override, calendar) -> df_item con 'pedido'
+    seed_df_builder() -> (df_item, cfg, target_override, calendar)
+    """
+    import math
+    df, cfg, overrides, cal = seed_df_builder(multiplo=1)
+    out = calc_fn(df, cfg, overrides, cal); s = int(out["pedido"].sum()); assert s==91, f"Smoke A fail: {s}"
+    df, cfg, overrides, cal = seed_df_builder(multiplo=6)
+    out = calc_fn(df, cfg, overrides, cal); s = int(out["pedido"].sum()); assert s==96, f"Smoke B fail: {s}"
+    # bloques M/MI/V
+    df, cfg, overrides, cal = seed_df_builder(multiplo=1, week_bits=[1,0,1,1,1,1,1])
+    out = calc_fn(df, cfg, overrides, cal); s = int(out["pedido"].sum()); assert s==91, f"Smoke C fail: {s}"
+    df, cfg, overrides, cal = seed_df_builder(multiplo=6, week_bits=[1,0,1,1,1,1,1])
+    out = calc_fn(df, cfg, overrides, cal); s = int(out["pedido"].sum()); assert s==96, f"Smoke D fail: {s}"
+    return "OK"
+
+proposed patch to 1 file (+42 -0)
+  └ C:\Users\nicol\OneDrive\Desktop\PITONISA2\app_patches/export_manifest.py
+    1     +import json
+    2     +import datetime as dt
+    3     +
+    4     +
+    5     +def export_manifest(cfg: dict, mode: str, formulas: dict, path: str = "manifest/sample.manifest.json"):
+    6     +    doc = {
+    7     +        "version": "0.2.0",
+    8     +        "generated_at": dt.datetime.utcnow().isoformat(),
+    9     +        "cfg": {
+    10    +            "CFG_TARGET": cfg.get("CFG_TARGET", 0),
+    11    +            "CFG_MULTIPLO": cfg.get("CFG_MULTIPLO", 1),
+    12    +            "CFG_ENABLE_AM_COVERAGE": bool(cfg.get("CFG_ENABLE_AM_COVERAGE", True)),
+    13    +            "CFG_AM_FRAC": float(cfg.get("CFG_AM_FRAC", 0.5)),
+    14    +            "CFG_ITEM_FILTER": cfg.get("CFG_ITEM_FILTER", ""),
+    15    +            "CFG_DELIVERY_WEEK": [int(x) for x in cfg.get("CFG_DELIVERY_WEEK", [1, 1, 1, 1, 1, 1, 1])],
+    16    +        },
+    17    +        "calculated_logic": {
+    20    +        },
+    21    +    }
+    22    +    with open(path, "w", encoding="utf-8") as f:
+    23    +        json.dump(doc, f, ensure_ascii=False, indent=2)
+    24    +    return path
+    25    +
+    26    +
+    27    +FORMULAS = {
+    28    +    "daily": {
+    29    +        "Pedido_bruto": "MAX(0, Target_ef + Esperado - Stock_ini)",
+    30    +        "Pedido": "ROUNDUP(Pedido_bruto/MULT) * MULT",
+    31    +        "Stock_fin": "Stock_ini + Pedido - Esperado",
+    32    +        "Target_auto": "AM_ON ? AM_FRAC * Esperado[d+1] : 0",
+    33    +        "Target_ef": "override(Target_dia) || MAX(CFG_TARGET, Target_auto)",
+    34    +    },
+    35    +    "blocks": {
+    36    +        "Demanda_B": "SUM(Esperado[d..prox-1])",
+    37    +        "Target_prox": "Target_ef[prox-1]",
+    38    +        "Pedido_bruto_B": "MAX(0, Target_prox + Demanda_B - Stock_ini[d])",
+    39    +        "Pedido_B": "ROUNDUP(Pedido_bruto_B/MULT) * MULT (solo en d)",
+    40    +    },
+    41    +}
+    42    +
+
+
+patch approval decision: Approved
+
+✏️ Applying patch
+
+✓ Applied patch
+  └ Success. Updated the following files:
+    A app_patches/export_manifest.py
+
+proposed patch to 1 file (+27 -0)
+  └ C:\Users\nicol\OneDrive\Desktop\PITONISA2\app_patches/smoke_tests.py
+    1     +def run_smokes(calc_fn, seed_df_builder):
+    2     +    """
+    5     +    """
+    6     +    df, cfg, overrides, cal = seed_df_builder(multiplo=1)
+    7     +    out = calc_fn(df, cfg, overrides, cal)
+    8     +    s = int(out["pedido"].sum())
+    9     +    assert s == 91, f"Smoke A fail: {s}"
+    10    +
+    11    +    df, cfg, overrides, cal = seed_df_builder(multiplo=6)
+    12    +    out = calc_fn(df, cfg, overrides, cal)
+    19    +    s = int(out["pedido"].sum())
+    20    +    assert s == 91, f"Smoke C fail: {s}"
+
+patch approval decision: Approved
+
+✏️ Applying patch
+
+✓ Applied patch
+  └ Success. Updated the following files:
+    A app_patches/smoke_tests.py
+
+✔ You approved codex to run pwsh -NoLogo -NoProfile -Command "Write-Host '--- Árbol ---'; cmd /c tree /F | Out-String
+-Width 200; Write-Host '--- docs/00-CHARter.md ---'; Get-Content -Path 'docs/00-CHARter.md' -TotalCount 5; Write-Host
+'--- docs/30-LOGIC.md ---'; Get-Content -Path 'docs/30-LOGIC.md' -TotalCount 5; Write-Host '--- docs/70-ADRs/
+ADR-0002-entregas-bloques.md ---'; Get-Content -Path 'docs/70-ADRs/ADR-0002-entregas-bloques.md' -TotalCount 5;
+Write-Host '--- manifest/schema.manifest.json ---'; Get-Content -Path 'manifest/schema.manifest.json' -TotalCount 5;
+Write-Host '--- app_patches/export_manifest.py ---'; Get-Content -Path 'app_patches/export_manifest.py' -TotalCount 5"
+this time
+
+>_
+  ✓ ⌨️ pwsh -NoLogo -NoProfile -Command "Write-Host '--- Árbol ---'; cmd /c tree /F | Out-String -Width 200; Write-Host
+'--- docs/00-CHARter.md ---'; Get-Content -Path 'docs/00-CHARter.md' -TotalCount 5; Write-Host '--- docs/30-LOGIC.md
+---'; Get-Content -Path 'docs/30-LOGIC.md' -TotalCount 5; Write-Host '--- docs/70-ADRs/ADR-0002-entregas-bloques.md
+---'; Get-Content -Path 'docs/70-ADRs/ADR-0002-entregas-bloques.md' -TotalCount 5; Write-Host '--- manifest/
+schema.manifest.json ---'; Get-Content -Path 'manifest/schema.manifest.json' -TotalCount 5; Write-Host '--- app_patches/
+export_manifest.py ---'; Get-Content -Path 'app_patches/export_manifest.py' -TotalCount 5"
+
+codex
+--- Árbol ---
+C:.
+|   app.py
+|   app_strict.py
+|   Arrancar_PITONISA.cmd
+|   CHANGELOG.md
+|   FONDO WEB.jpeg
+|   LOGO.jpeg
+|   PITONISA.xlsx
+|   PITONISA2 CONTEXTO CODEX.txt
+|   requirements.txt
+|   ROADMAP.md
+|
++---.streamlit
+|       config.toml
+|
++---app_patches
+|       export_manifest.py
+|       smoke_tests.py
+|
++---docs
+|   |   00-CHARter.md
+|   |   10-ARCHITECTURE.md
+|   |   20-DATA_MODEL.md
+|   |   30-LOGIC.md
+|   |   40-UI.md
+|   |   50-OPERATIONS.md
+|   |   60-TEST_PLAN.md
+|   |   NOTAS_PITONISA.md
+|   |
+|   ---70-ADRs
+|           ADR-0001-fechas-dmY.md
+|           ADR-0002-entregas-bloques.md
+|           ADR-0003-cobertura-AM.md
+|           ADR-0004-target-override-por-dia.md
+|           ADR-0005-pedido-semanal-dinamico.md
+|           ADR-0006-imputacion-quiebre.md
+|
++---manifest
+|       sample.manifest.json
+|       schema.manifest.json
+|
+---pycache
+        app.cpython-313.pyc
+        app_strict.cpython-313.pyc
+
+--- docs/00-CHARter.md ---
+
+# PythonISA 2 - Project Charter
+
+Propósito: Proyectar ventas y generar pedidos automáticos con reglas operativas (target, múltiplo, calendario de
+entregas, cobertura AM) y datos confiables (parseo estricto D/M/YYYY).
+
+Alcance v0.2: cálculo diario y por bloques; barra lateral de CFG; filtro por ítem; “Pedido semanal”; import csv/xlsx;
+parseo fechas/horas estricto; calendario semanal + excepciones; cobertura AM; override Target por día.
+
+--- docs/30-LOGIC.md ---
+
+# Lógica de cálculo
+
+
+✔ You approved codex to run
+    pwsh -NoLogo -NoProfile -Command "python - << 'PY'
+    import pandas as pd
+    from datetime import date, timedelta
+    from app_strict import OrderCfg, DeliveryCalendar, build_orders_daily, build_orders_blocks
+
+    EXPECTED_SUMS = {('daily',1):91, ('daily',6):96, ('blocks',1):91, ('blocks',6):96}
+
+    # Seed builder (7 días)
+    start = date(2025,8,25)
+    fechas = [start + timedelta(days=i) for i in range(7)]
+    E = [15,14,13,12,11,13,13]
+
+
+>_
+  ✗ ⌨️ pwsh -NoLogo -NoProfile -Command "python - << 'PY'
+    import pandas as pd
+    from datetime import date, timedelta
+    from app_strict import OrderCfg, DeliveryCalendar, build_orders_daily, build_orders_blocks
+
+    EXPECTED_SUMS = {('daily',1):91, ('daily',6):96, ('blocks',1):91, ('blocks',6):96}
+
+    # Seed builder (7 días)
+    start = date(2025,8,25)
+    fechas = [start + timedelta(days=i) for i in range(7)]
+    E = [15,14,13,12,11,13,13]
+
+    def run_mode(mode:str, mult:int, week_bits=None):
+        cfg = OrderCfg(target_global=0.0, multiplo=mult, enable_am=True, am_frac=0.5)
+        stock0 = 11.0
+
+
+✔ You approved codex to run
+    pwsh -NoLogo -NoProfile -Command '$code = @'"'
+    import pandas as pd
+    from datetime import date, timedelta
+    from app_strict import OrderCfg, DeliveryCalendar, build_orders_daily, build_orders_blocks
+
+    EXPECTED_SUMS = {('daily',1):91, ('daily',6):96, ('blocks',1):91, ('blocks',6):96}
+
+    # Seed builder (7 días)
+    start = date(2025,8,25)
+    fechas = [start + timedelta(days=i) for i in range(7)]
+    E = [15,14,13,12,11,13,13]
+
+  ✗ ⌨️ pwsh -NoLogo -NoProfile -Command '$code = @'"'
+    import pandas as pd
+    from datetime import date, timedelta
+    from app_strict import OrderCfg, DeliveryCalendar, build_orders_daily, build_orders_blocks
+
+    EXPECTED_SUMS = {('daily',1):91, ('daily',6):96, ('blocks',1):91, ('blocks',6):96}
+
+    # Seed builder (7 días)
+    start = date(2025,8,25)
+    fechas = [start + timedelta(days=i) for i in range(7)]
+    E = [15,14,13,12,11,13,13]
+
+    def run_mode(mode:str, mult:int, week_bits=None):
+        cfg = OrderCfg(target_global=0.0, multiplo=mult, enable_am=True, am_frac=0.5)
+        stock0 = 11.0
+
+
+✔ You approved codex to run
+    pwsh -NoLogo -NoProfile -Command '$code = @'"'
+    import pandas as pd
+    from datetime import date, timedelta
+    from app_strict import OrderCfg, DeliveryCalendar, build_orders_daily, build_orders_blocks
+
+    EXPECTED_SUMS = {('daily',1):91, ('daily',6):96, ('blocks',1):91, ('blocks',6):96}
+
+    # Seed builder (7 días)
+    start = date(2025,8,25)
+    fechas = [start + timedelta(days=i) for i in range(7)]
+    E = [15,14,13,12,11,13,13]
+
+  ✓ ⌨️ pwsh -NoLogo -NoProfile -Command '$code = @'"'
+    import pandas as pd
+    from datetime import date, timedelta
+    from app_strict import OrderCfg, DeliveryCalendar, build_orders_daily, build_orders_blocks
+
+    EXPECTED_SUMS = {('daily',1):91, ('daily',6):96, ('blocks',1):91, ('blocks',6):96}
+
+    # Seed builder (7 días)
+    start = date(2025,8,25)
+    fechas = [start + timedelta(days=i) for i in range(7)]
+    E = [15,14,13,12,11,13,13]
+
+    def run_mode(mode:str, mult:int, week_bits=None):
+        cfg = OrderCfg(target_global=0.0, multiplo=mult, enable_am=True, am_frac=0.5)
+        stock0 = 11.0
+        if mode=='daily':
+            pedidos, _ = build_orders_daily(fechas, E, stock0, {}, cfg)
+            pedidos, _ = build_orders_blocks(fechas, E, stock0, {}, cfg, cal)
+        return sum(pedidos)
+    for mode, mult in [('daily',1),('daily',6),('blocks',1),('blocks',6)]:
+        week_bits = [1,0,1,1,1,1,1] if mode=='blocks' else None
+        s = run_mode(mode, mult, week_bits)
+        exp = EXPECTED_SUMS[(mode,mult)]
+        if int(s) "'!= exp:
+            fails.append(f"{mode} x{mult}: got {int(s)}, expected {exp}")
+
+    print('"'OK' if not fails else 'FAIL\\n'+'\\n'.join(fails))
+    '@; python -c "'$code'
+
+
+✔ You approved codex to run
+    pwsh -NoLogo -NoProfile -Command '$code = @'"'
+    import pandas as pd
+    from app_strict import OrderCfg, DeliveryCalendar, build_orders_daily, build_orders_blocks
+
+    EXPECTED_SUMS = {('daily',1):91, ('daily',6):96, ('blocks',1):91, ('blocks',6):96}
+
+    dates = pd.date_range('2025-08-25','2025-08-31', freq='D')  # inclusive 7 days
+
+
+>_
+  ✓ ⌨️ pwsh -NoLogo -NoProfile -Command '$code = @'"'
+    import pandas as pd
+    from app_strict import OrderCfg, DeliveryCalendar, build_orders_daily, build_orders_blocks
+
+    EXPECTED_SUMS = {('daily',1):91, ('daily',6):96, ('blocks',1):91, ('blocks',6):96}
+
+    dates = pd.date_range('2025-08-25','2025-08-31', freq='D')  # inclusive 7 days
+    E = [15,14,13,12,11,13,13]
+    fechas = [d.date() for d in dates]
+
+    def run_mode(mode:str, mult:int, week_bits=None):
+        cfg = OrderCfg(target_global=0.0, multiplo=mult, enable_am=True, am_frac=0.5)
+        stock0 = 11.0
+        else:
+            cal = DeliveryCalendar(week_bits=week_bits or [1,1,1,1,1,1,1], exceptions={})
+            pedidos, _ = build_orders_blocks(fechas, E, stock0, {}, cfg, cal)
+        return sum(pedidos)
+
+    fails = []
+    for mode, mult in [('daily',1),('daily',6),('blocks',1),('blocks',6)]:
+        week_bits = [1,0,1,1,1,1,1] if mode=='blocks' else None
+        s = run_mode(mode, mult, week_bits)
+        exp = EXPECTED_SUMS[(mode,mult)]
+        if int(s) "'!= exp:
+            fails.append(f"{mode} x{mult}: got {int(s)}, expected {exp}")
+
+    print('"'OK' if not fails else 'FAIL\\n'+'\\n'.join(fails))
+    '@; python -c "'$code'
+
+codex
+FAIL
+daily x1: got 80, expected 91
+daily x6: got 84, expected 96
+blocks x1: got 80, expected 91
+blocks x6: got 84, expected 96
+
+user
+# --- HOTFIX v0.2.0-1: cálculo diario/bloques correcto ---
+import math, datetime as dt
+import pandas as pd
+
+def _ceil_to_multiple(x: float, m: int) -> int:
+    m = max(1, int(m or 1))
+    if x <= 0: return 0
+    return int(math.ceil(float(x) / m) * m)
+
+def _target_auto(i: int, E, am_on: bool, am_frac: float) -> float:
+    if not am_on: return 0.0
+    nxt = float(E[i+1]) if i+1 < len(E) and E[i+1] is not None else 0.0
+    return float(am_frac) * nxt
+
+
+def _orders_daily(fechas, E, si0, overrides, cfg):
+    n = len(E)
+    pedido, stock_fin = [0]*n, [0.0]*n
+    stock_ini = float(si0)
+    for i in range(n):
+        te = _target_eff(i, fechas, E, overrides,
+                         cfg.CFG_TARGET, cfg.CFG_ENABLE_AM_COVERAGE, cfg.CFG_AM_FRAC)
+        bruto = max(0.0, te + float(E[i]) - stock_ini)
+        p = _ceil_to_multiple(bruto, cfg.CFG_MULTIPLO)
+        pedido[i] = int(p)
+        sf = stock_ini + p - float(E[i])
+        stock_fin[i] = sf
+        stock_ini = sf
+    return pedido, stock_fin
+
+# Si ya tenés DeliveryCalendar/read_delivery_cfg, usalos; si no, dejar bloques=1 día c/u.
+def _compute_blocks_from_calendar(fechas, calendar):
+    n = len(fechas)
+    if calendar is None:  # sin calendario → bloques de 1 día
+
+🖐  Tell the model what to do differently
+
+user
+  #       return [(i, i+1) for i in range(n)]
+    def is_del(d):
+        d0 = d.date() if isinstance(d, dt.datetime) else d
+        return int(calendar.is_delivery(d0)) == 1
+    starts = [i for i in range(n) if is_del(fechas[i])]
+    if not starts: starts = [0]
+    blocks = []
+    for k, s in enumerate(starts):
+        e = starts[k+1] if k+1 < len(starts) else n
+        blocks.append((s, e))
+    if blocks[0][0] != 0:
+        blocks = [(0, blocks[0][0])] + blocks
+    return blocks
+
+def _orders_blocks(fechas, E, si0, overrides, cfg, calendar):
+    n = len(E)
+    pedido, stock_fin = [0]*n, [0.0]*n
+    stock_ini = float(si0)
+    blocks = _compute_blocks_from_calendar(fechas, calendar)
+    for (s, e) in blocks:
+        demanda = sum(float(E[j]) for j in range(s, e))
+        te_prox = _target_eff(e-1, fechas, E, overrides,
+                              cfg.CFG_TARGET, cfg.CFG_ENABLE_AM_COVERAGE, cfg.CFG_AM_FRAC)
+        bruto_b = max(0.0, te_prox + demanda - stock_ini)
+        p_b = _ceil_to_multiple(bruto_b, cfg.CFG_MULTIPLO)
+        if p_b > 0: pedido[s] = int(p_b)
+        for i in range(s, e):
+            add = p_b if i == s else 0
+            sf = stock_ini + add - float(E[i])
+            stock_fin[i] = sf
+            stock_ini = sf
+    return pedido, stock_fin
+
+def build_weekly_orders(df_item, cfg, target_overrides, delivery_calendar=None, enable_blocks=None):
+    df_item = df_item.sort_values("fecha").reset_index(drop=True)
+    fechas = pd.to_datetime(df_item["fecha"]).tolist()
+    E = [float(x or 0.0) for x in df_item["esperado"].tolist()]
+    si0 = float(df_item["stock_ini"].iloc[0])  # << NO tocar inventario real
+    # definir modo
+    if enable_blocks is None:
+        use_blocks = delivery_calendar is not None
+    else:
+        use_blocks = bool(enable_blocks)
+    if use_blocks:
+        pedido, sf = _orders_blocks(fechas, E, si0, target_overrides, cfg, delivery_calendar)
+    else:
+        pedido, sf = _orders_daily(fechas, E, si0, target_overrides, cfg)
+    df_item["pedido"] = pedido
+    df_item["stock_fin"] = sf
+    # completar arrastre de stock_ini
+    si = [si0]
+    for i in range(1, len(df_item)):
+        si.append(sf[i-1])
+    df_item["stock_ini"] = si
+    return df_item
+# --- FIN HOTFIX ---
+--- HOTFIX v0.2.0-1: cálculo diario/bloques correcto ---
+import math, datetime as dt
+import pandas as pd
+
+def _ceil_to_multiple(x: float, m: int) -> int:
+    m = max(1, int(m or 1))
+    if x <= 0: return 0
+    return int(math.ceil(float(x) / m) * m)
+
+def _target_auto(i: int, E, am_on: bool, am_frac: float) -> float:
+    if not am_on: return 0.0
+    nxt = float(E[i+1]) if i+1 < len(E) and E[i+1] is not None else 0.0
+    return float(am_frac) * nxt
+
+def _target_eff(i, fechas, E, overrides, CFG_TARGET, am_on, am_frac) -> float:
+    f = fechas[i]
+
+def _orders_daily(fechas, E, si0, overrides, cfg):
+    n = len(E)
+    pedido, stock_fin = [0]*n, [0.0]*n
+    stock_ini = float(si0)
+    for i in range(n):
+        te = _target_eff(i, fechas, E, overrides,
+                         cfg.CFG_TARGET, cfg.CFG_ENABLE_AM_COVERAGE, cfg.CFG_AM_FRAC)
+        bruto = max(0.0, te + float(E[i]) - stock_ini)
+        p = _ceil_to_multiple(bruto, cfg.CFG_MULTIPLO)
+        pedido[i] = int(p)
+        sf = stock_ini + p - float(E[i])
+        stock_fin[i] = sf
+        stock_ini = sf
+    return pedido, stock_fin
+
+# Si ya tenés DeliveryCalendar/read_delivery_cfg, usalos; si no, dejar bloques=1 día c/u.
+def _compute_blocks_from_calendar(fechas, calendar):
+    n = len(fechas)
+    if calendar is None:  # sin calendario → bloques de 1 día
+
+🖐  Tell the model what to do differently
+
+user
+        return [(i, i+1) for i in range(n)]
+    def is_del(d):
+        d0 = d.date() if isinstance(d, dt.datetime) else d
+        return int(calendar.is_delivery(d0)) == 1
+    starts = [i for i in range(n) if is_del(fechas[i])]
+    if not starts: starts = [0]
+    blocks = []
+    for k, s in enumerate(starts):
+        e = starts[k+1] if k+1 < len(starts) else n
+        blocks.append((s, e))
+    if blocks[0][0] != 0:
+        blocks = [(0, blocks[0][0])] + blocks
+    return blocks
+
+def _orders_blocks(fechas, E, si0, overrides, cfg, calendar):
+    n = len(E)
+    pedido, stock_fin = [0]*n, [0.0]*n
+    stock_ini = float(si0)
+    blocks = _compute_blocks_from_calendar(fechas, calendar)
+    for (s, e) in blocks:
+        demanda = sum(float(E[j]) for j in range(s, e))
+        te_prox = _target_eff(e-1, fechas, E, overrides,
+                              cfg.CFG_TARGET, cfg.CFG_ENABLE_AM_COVERAGE, cfg.CFG_AM_FRAC)
+        bruto_b = max(0.0, te_prox + demanda - stock_ini)
+        p_b = _ceil_to_multiple(bruto_b, cfg.CFG_MULTIPLO)
+        if p_b > 0: pedido[s] = int(p_b)
+        for i in range(s, e):
+            add = p_b if i == s else 0
+            sf = stock_ini + add - float(E[i])
+            stock_fin[i] = sf
+            stock_ini = sf
+    return pedido, stock_fin
+
+def build_weekly_orders(df_item, cfg, target_overrides, delivery_calendar=None, enable_blocks=None):
+    df_item = df_item.sort_values("fecha").reset_index(drop=True)
+    fechas = pd.to_datetime(df_item["fecha"]).tolist()
+    E = [float(x or 0.0) for x in df_item["esperado"].tolist()]
+    si0 = float(df_item["stock_ini"].iloc[0])  # << NO tocar inventario real
+    # definir modo
+    if enable_blocks is None:
+        use_blocks = delivery_calendar is not None
+    else:
+        use_blocks = bool(enable_blocks)
+    if use_blocks:
+        pedido, sf = _orders_blocks(fechas, E, si0, target_overrides, cfg, delivery_calendar)
+    else:
+        pedido, sf = _orders_daily(fechas, E, si0, target_overrides, cfg)
+    df_item["pedido"] = pedido
+    df_item["stock_fin"] = sf
+    # completar arrastre de stock_ini
+    si = [si0]
+    for i in range(1, len(df_item)):
+        si.append(sf[i-1])
+    df_item["stock_ini"] = si
+    return df_item
+# --- FIN HOTFIX ---
+# --- HOTFIX v0.2.0-1: cálculo diario/bloques correcto ---
+import math, datetime as dt
+import pandas as pd
+
+def _ceil_to_multiple(x: float, m: int) -> int:
+    m = max(1, int(m or 1))
+    if x <= 0: return 0
+    return int(math.ceil(float(x) / m) * m)
+
+def _target_auto(i: int, E, am_on: bool, am_frac: float) -> float:
+    if not am_on: return 0.0
+    nxt = float(E[i+1]) if i+1 < len(E) and E[i+1] is not None else 0.0
+    return float(am_frac) * nxt
+
+def _target_eff(i, fechas, E, overrides, CFG_TARGET, am_on, am_frac) -> float:
+    f = fechas[i]
+    key = (f.date() if isinstance(f, dt.datetime) else f).isoformat()
+    if overrides and key in overrides and overrides[key] is not None:
+        return float(overrides[key])
+    return max(float(CFG_TARGET), _target_auto(i, E, am_on, am_frac))
+
+def _orders_daily(fechas, E, si0, overrides, cfg):
+    n = len(E)
+    pedido, stock_fin = [0]*n, [0.0]*n
+    stock_ini = float(si0)
+    for i in range(n):
+        bruto = max(0.0, te + float(E[i]) - stock_ini)
+        p = _ceil_to_multiple(bruto, cfg.CFG_MULTIPLO)
+        pedido[i] = int(p)
+        sf = stock_ini + p - float(E[i])
+        stock_fin[i] = sf
+        stock_ini = sf
+    return pedido, stock_fin
+
+# Si ya tenés DeliveryCalendar/read_delivery_cfg, usalos; si no, dejar bloques=1 día c/u.
+def _compute_blocks_from_calendar(fechas, calendar):
+    n = len(fechas)
+    if calendar is None:  # sin calendario → bloques de 1 día
+
+codex
+Resultado smokes: FAIL
+
+- daily x1: got 80, expected 91
+- daily x6: got 84, expected 96
+- blocks x1: got 80, expected 91
+- blocks x6: got 84, expected 96
+
+¿Aplico tu HOTFIX v0.2.0-1 en app_strict.py y vuelvo a correr los smokes para que den OK?
+
+user
+#       return [(i, i+1) for i in range(n)]
+    def is_del(d):
+        d0 = d.date() if isinstance(d, dt.datetime) else d
+        return int(calendar.is_delivery(d0)) == 1
+    starts = [i for i in range(n) if is_del(fechas[i])]
+    if not starts: starts = [0]
+    blocks = []
+    for k, s in enumerate(starts):
+        e = starts[k+1] if k+1 < len(starts) else n
+        blocks.append((s, e))
+    if blocks[0][0] != 0:
+        blocks = [(0, blocks[0][0])] + blocks
+    return blocks
+
+def _orders_blocks(fechas, E, si0, overrides, cfg, calendar):
+    n = len(E)
+    pedido, stock_fin = [0]*n, [0.0]*n
+    stock_ini = float(si0)
+    blocks = _compute_blocks_from_calendar(fechas, calendar)
+    for (s, e) in blocks:
+        demanda = sum(float(E[j]) for j in range(s, e))
+        te_prox = _target_eff(e-1, fechas, E, overrides,
+                              cfg.CFG_TARGET, cfg.CFG_ENABLE_AM_COVERAGE, cfg.CFG_AM_FRAC)
+        bruto_b = max(0.0, te_prox + demanda - stock_ini)
+        p_b = _ceil_to_multiple(bruto_b, cfg.CFG_MULTIPLO)
+        if p_b > 0: pedido[s] = int(p_b)
+        for i in range(s, e):
+            add = p_b if i == s else 0
+            sf = stock_ini + add - float(E[i])
+            stock_fin[i] = sf
+            stock_ini = sf
+    return pedido, stock_fin
+
+def build_weekly_orders(df_item, cfg, target_overrides, delivery_calendar=None, enable_blocks=None):
+    df_item = df_item.sort_values("fecha").reset_index(drop=True)
+    fechas = pd.to_datetime(df_item["fecha"]).tolist()
+    E = [float(x or 0.0) for x in df_item["esperado"].tolist()]
+    si0 = float(df_item["stock_ini"].iloc[0])  # << NO tocar inventario real
+    # definir modo
+    if enable_blocks is None:
+        use_blocks = delivery_calendar is not None
+    else:
+        use_blocks = bool(enable_blocks)
+    if use_blocks:
+        pedido, sf = _orders_blocks(fechas, E, si0, target_overrides, cfg, delivery_calendar)
+    else:
+        pedido, sf = _orders_daily(fechas, E, si0, target_overrides, cfg)
+    df_item["pedido"] = pedido
+    df_item["stock_fin"] = sf
+    # completar arrastre de stock_ini
+    si = [si0]
+    for i in range(1, len(df_item)):
+        si.append(sf[i-1])
+    df_item["stock_ini"] = si
+    return df_item
+# --- FIN HOTFIX ------ HOTFIX v0.2.0-1: cálculo diario/bloques correcto ---
+import math, datetime as dt
+import pandas as pd
+
+def _ceil_to_multiple(x: float, m: int) -> int:
+    m = max(1, int(m or 1))
+    if x <= 0: return 0
+    return int(math.ceil(float(x) / m) * m)
+
+def _target_auto(i: int, E, am_on: bool, am_frac: float) -> float:
+    if not am_on: return 0.0
+    nxt = float(E[i+1]) if i+1 < len(E) and E[i+1] is not None else 0.0
+    return float(am_frac) * nxt
+
+def _target_eff(i, fechas, E, overrides, CFG_TARGET, am_on, am_frac) -> float:
+    f = fechas[i]
+        return float(overrides[key])
+    return max(float(CFG_TARGET), _target_auto(i, E, am_on, am_frac))
+
+def _orders_daily(fechas, E, si0, overrides, cfg):
+    n = len(E)
+    pedido, stock_fin = [0]*n, [0.0]*n
+    stock_ini = float(si0)
+    for i in range(n):
+        te = _target_eff(i, fechas, E, overrides,
+                         cfg.CFG_TARGET, cfg.CFG_ENABLE_AM_COVERAGE, cfg.CFG_AM_FRAC)
+        bruto = max(0.0, te + float(E[i]) - stock_ini)
+        p = _ceil_to_multiple(bruto, cfg.CFG_MULTIPLO)
+        pedido[i] = int(p)
+        sf = stock_ini + p - float(E[i])
+        stock_fin[i] = sf
+        stock_ini = sf
+    return pedido, stock_fin
+
+# Si ya tenés DeliveryCalendar/read_delivery_cfg, usalos; si no, dejar bloques=1 día c/u.
+def _compute_blocks_from_calendar(fechas, calendar):
+    n = len(fechas)
+    if calendar is None:  # sin calendario → bloques de 1 día
+
+codex
+Veo tu HOTFIX. Para que den OK necesito una de estas dos cosas:
+
+- Me das el seed_df_builder que usás en los smokes (para replicar exactamente tus supuestos).
+- O aplico el HOTFIX en app_strict.py y corro de nuevo con mi semilla (E=[15,14,13,12,11,13,13], SI0=11), pero anticipo:
+con D/M/YYYY y AM del “día siguiente dentro de la misma semana”, la suma sigue en 80/84.
+
+¿Aplico el HOTFIX ya y re‑ejecuto, o me pasás tu seed_df_builder?
+
+user
+        return [(i, i+1) for i in range(n)]
+    def is_del(d):
+        d0 = d.date() if isinstance(d, dt.datetime) else d
+        return int(calendar.is_delivery(d0)) == 1
+    starts = [i for i in range(n) if is_del(fechas[i])]
+    if not starts: starts = [0]
+    blocks = []
+    for k, s in enumerate(starts):
+        e = starts[k+1] if k+1 < len(starts) else n
+        blocks.append((s, e))
+    if blocks[0][0] != 0:
+        blocks = [(0, blocks[0][0])] + blocks
+    return blocks
+
+def _orders_blocks(fechas, E, si0, overrides, cfg, calendar):
+    n = len(E)
+    pedido, stock_fin = [0]*n, [0.0]*n
+    stock_ini = float(si0)
+    blocks = _compute_blocks_from_calendar(fechas, calendar)
+    for (s, e) in blocks:
+        demanda = sum(float(E[j]) for j in range(s, e))
+        te_prox = _target_eff(e-1, fechas, E, overrides,
+                              cfg.CFG_TARGET, cfg.CFG_ENABLE_AM_COVERAGE, cfg.CFG_AM_FRAC)
+        bruto_b = max(0.0, te_prox + demanda - stock_ini)
+        p_b = _ceil_to_multiple(bruto_b, cfg.CFG_MULTIPLO)
+        if p_b > 0: pedido[s] = int(p_b)
+        for i in range(s, e):
+            add = p_b if i == s else 0
+            sf = stock_ini + add - float(E[i])
+            stock_fin[i] = sf
+            stock_ini = sf
+    return pedido, stock_fin
+
+def build_weekly_orders(df_item, cfg, target_overrides, delivery_calendar=None, enable_blocks=None):
+    df_item = df_item.sort_values("fecha").reset_index(drop=True)
+    fechas = pd.to_datetime(df_item["fecha"]).tolist()
+    # definir modo
+    if enable_blocks is None:
+        use_blocks = delivery_calendar is not None
+    else:
+        use_blocks = bool(enable_blocks)
+    if use_blocks:
+        pedido, sf = _orders_blocks(fechas, E, si0, target_overrides, cfg, delivery_calendar)
+    else:
+        pedido, sf = _orders_daily(fechas, E, si0, target_overrides, cfg)
+    # completar arrastre de stock_ini
+    si = [si0]
+    for i in range(1, len(df_item)):
+        si.append(sf[i-1])
+    df_item["stock_ini"] = si
+    return df_item
+# --- FIN HOTFIX ---
+p = int(math.ceil(bruto / max(1, cfg.CFG_MULTIPLO)) * max(1, cfg.CFG_MULTIPLO))
+
+user
+bruto = max(0.0, target_eff + float(E[i]) - stock_ini)
+p = int(math.ceil(bruto / max(1, cfg.CFG_MULTIPLO)) * max(1, cfg.CFG_MULTIPLO))
+
+codex
+Ya usamos esas fórmulas (bruto y redondeo) en _orders_daily/_orders_blocks. ¿Corro los smokes otra vez?
+
+user
+- target_auto = CFG_AM_FRAC × nxt (si AM ON).
+- En el último día, nxt=0.
+si0 = float(df_item["stock_ini"].iloc[0])  # NO tocar
+# ...
+df_item["stock_fin"] = stock_fin
+si = [si0] + [stock_fin[i-1] for i in range(1, len(stock_fin))]
+df_item["stock_ini"] = si
+
+codex
+Sí, correcto: preservás si0 y arrastrás con el stock_fin del día anterior.
+
+- Edge cases: si len==0 o si0 NaN, proteger antes.
+- Alternativa equivalente con shift:
+user
+p_b = int(math.ceil(bruto_b / max(1, cfg.CFG_MULTIPLO)) * max(1, cfg.CFG_MULTIPLO))
+pedido[s] = p_b
+    stock_fin[i] = stock_ini + add - float(E[i])
+    stock_ini = stock_fin[i]
+
+codex
+Sí, esa es la lógica correcta del bloque:
+
+- Demanda del bloque = suma s..e-1.
+user
+def _ceil_to_multiple(x, m):
+
+codex
+Perfecto. Redondeo hacia arriba en múltiplos con clamp a no-negativo:
+
+- Asegura m >= 1.
+
+
+user
+# app_patches/smoke_wrapper.py
+import math, datetime as dt, pandas as pd
+
+def _ceil(x,m): m=max(1,int(m or 1)); return 0 if x<=0 else int(math.ceil(float(x)/m)*m)
+def _tauto(i,E,on,frac): return (frac*float(E[i+1])) if on and i+1<len(E) and E[i+1] is not None else 0.0
+def _teff(i,fechas,E,ovr,cfg):
+    f=fechas[i]; k=(f.date() if isinstance(f,dt.datetime) else f).isoformat()
+    return float(ovr[k]) if (ovr and k in ovr and ovr[k] is not None) else max(float(cfg.CFG_TARGET),
+_tauto(i,E,cfg.CFG_ENABLE_AM_COVERAGE,cfg.CFG_AM_FRAC))
+
+def _blocks(fechas, cal):
+    n=len(fechas)
+    if not cal: return [(i,i+1) for i in range(n)]
+    def isdel(d):
+        d0 = d.date() if isinstance(d,dt.datetime) else d
+        return int(cal.is_delivery(d0))==1
+    starts=[i for i in range(n) if isdel(fechas[i])] or [0]
+    bl=[(s,(starts[j+1] if j+1<len(starts) else n)) for j,s in enumerate(starts)]
+    if bl[0][0]!=0: bl=[(0,bl[0][0])]+bl
+    return bl
+
+def build_weekly_orders_smoke(df, cfg, overrides, cal):
+    df=df.sort_values("fecha").reset_index(drop=True)
+    fechas=pd.to_datetime(df["fecha"]).tolist()
+    E=[float(x or 0.0) for x in df["esperado"].tolist()]
+    # auto: bloques si el calendario tiene algún 0 o excepciones; si no, diario
+    use_blocks = (cal is not None) and (0 in getattr(cal,"week_bits",[1,1,1,1,1,1,1]) or getattr(cal,"exceptions",{}))
+            tb=_teff(e-1,fechas,E,overrides,cfg)
+            pb=_ceil(max(0.0, tb+dem - s), cfg.CFG_MULTIPLO)
+            if pb>0: pedido[s0]=pb
+            for i in range(s0,e):
+                add=pb if i==s0 else 0
+                s = s + add - E[i]
+                sf[i]=s
+    else:
+        for i in range(len(E)):
+            te=_teff(i,fechas,E,overrides,cfg)
+            p=_ceil(max(0.0, te+E[i]-s), cfg.CFG_MULTIPLO)
+            pedido[i]=p
+            s = s + p - E[i]
+            sf[i]=s
+    df["pedido"]=pedido; df["stock_fin"]=sf
+    df["stock_ini"]=[si]+[sf[i-1] for i in range(1,len(sf))]
+    return df
+
+✔ You approved codex to run pwsh -NoLogo -NoProfile -Command "Select-String -Path 'app_strict.py' -Pattern '"'^def
+read_delivery_cfg'"\\(' -SimpleMatch | Select-Object -First 1 | ForEach-Object { "'$_.LineNumber }' this time
+
+>_
+  ✓ ⌨️ pwsh -NoLogo -NoProfile -Command "Select-String -Path 'app_strict.py' -Pattern '"'^def read_delivery_cfg'"\\('
+-SimpleMatch | Select-Object -First 1 | ForEach-Object { "'$_.LineNumber }'
+
+proposed patch to 1 file (+73 -0)
+  └ C:\Users\nicol\OneDrive\Desktop\PITONISA2\app_patches/smoke_wrapper.py
+    1     +import math, datetime as dt, pandas as pd
+    2     +
+    3     +
+    4     +def _ceil(x, m):
+    5     +    m = max(1, int(m or 1))
+    6     +    return 0 if x <= 0 else int(math.ceil(float(x) / m) * m)
+    7     +
+    8     +
+    9     +def _tauto(i, E, on, frac):
+    10    +    return (frac * float(E[i + 1])) if on and i + 1 < len(E) and E[i + 1] is not None else 0.0
+    11    +
+    12    +
+    13    +def _teff(i, fechas, E, ovr, cfg):
+    14    +    f = fechas[i]
+    15    +    k = (f.date() if isinstance(f, dt.datetime) else f).isoformat()
+    16    +    return (
+    17    +        float(ovr[k])
+    18    +        if (ovr and k in ovr and ovr[k] is not None)
+    19    +        else max(float(cfg.CFG_TARGET), _tauto(i, E, cfg.CFG_ENABLE_AM_COVERAGE, cfg.CFG_AM_FRAC))
+    20    +    )
+    21    +
+    22    +
+    23    +def _blocks(fechas, cal):
+    24    +    n = len(fechas)
+    25    +    if not cal:
+    26    +        return [(i, i + 1) for i in range(n)]
+    27    +
+    28    +    def isdel(d):
+    29    +        d0 = d.date() if isinstance(d, dt.datetime) else d
+    30    +        return int(cal.is_delivery(d0)) == 1
+    31    +
+    32    +    starts = [i for i in range(n) if isdel(fechas[i])] or [0]
+    33    +    bl = [(s, (starts[j + 1] if j + 1 < len(starts) else n)) for j, s in enumerate(starts)]
+    34    +    if bl[0][0] != 0:
+    35    +        bl = [(0, bl[0][0])] + bl
+    36    +    return bl
+    37    +
+    38    +
+    39    +def build_weekly_orders_smoke(df, cfg, overrides, cal):
+    40    +    df = df.sort_values("fecha").reset_index(drop=True)
+    41    +    fechas = pd.to_datetime(df["fecha"]).tolist()
+    42    +    E = [float(x or 0.0) for x in df["esperado"].tolist()]
+    43    +    si = float(df["stock_ini"].iloc[0])  # inventario real del primer día
+    44    +    # auto: bloques si el calendario tiene algún 0 o excepciones; si no, diario
+    45    +    use_blocks = (cal is not None) and (
+    46    +        (hasattr(cal, "week_bits") and 0 in getattr(cal, "week_bits")) or getattr(cal, "exceptions", {})
+    47    +    )
+    48    +    pedido = [0] * len(E)
+    51    +    if use_blocks:
+    52    +        for s0, e in _blocks(fechas, cal):
+    53    +            dem = sum(E[j] for j in range(s0, e))
+    54    +            tb = _teff(e - 1, fechas, E, overrides, cfg)
+    55    +            pb = _ceil(max(0.0, tb + dem - s), cfg.CFG_MULTIPLO)
+    56    +            if pb > 0:
+    57    +                pedido[s0] = pb
+    58    +            for i in range(s0, e):
+
+
+
+>_
+  ✗ ⌨️ pwsh -NoLogo -NoProfile -Command "python - << 'PY'
+
+ this time
+  ✗ ⌨️ pwsh -NoLogo -NoProfile -Command '$code = @'"'
+    from app_patches.smoke_tests import run_smokes
+    from app_patches.smoke_wrapper import build_weekly_orders_smoke
+    from app_strict import DeliveryCalendar
+    import pandas as pd
+
+
+    def seed_df_builder(multiplo=1, week_bits=None):
+        fechas = pd.date_range(\"2025-08-25\",\"2025-08-31\", freq=\"D\")
+        esperado = [15,14,15,14,15,14,15]
+        df = pd.DataFrame({\"fecha\":fechas, \"esperado\":esperado, \"stock_ini\":[11]+[None]*6})
+        class Cfg:
+            CFG_TARGET=0; CFG_MULTIPLO=multiplo; CFG_ENABLE_AM_COVERAGE=True; CFG_AM_FRAC=0.5
+        cfg = Cfg(); overrides = {}
+        wb = week_bits if week_bits is not None else [1,1,1,1,1,1,1]
+        cal = DeliveryCalendar(week_bits=wb, exceptions={})
+        return df, cfg, overrides, cal
+bare mode.
+    2025-08-30 21:38:48.895 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in
+bare mode.
+    2025-08-30 21:38:48.895 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in
+bare mode.
+
+codex
+OK
+
+user
+from app_patches.smoke_tests import run_smokes
+from app_patches.smoke_wrapper import build_weekly_orders_smoke
+from app_strict import read_delivery_cfg
+import pandas as pd
+
+def seed_df_builder(multiplo=1, week_bits=None):
+    fechas = pd.date_range("2025-08-25","2025-08-31",freq="D")  # 7 días inclusivo
+    esperado = [15,14,15,14,15,14,15]
+    df = pd.DataFrame({"fecha":fechas,"esperado":esperado,"stock_ini":[11]+[None]*6})
+    class Cfg: CFG_TARGET=0; CFG_MULTIPLO=multiplo; CFG_ENABLE_AM_COVERAGE=True; CFG_AM_FRAC=0.5
+    cfg = Cfg(); overrides = {}
+    wb = week_bits if week_bits else [1,1,1,1,1,1,1]
+    cal = read_delivery_cfg({"CFG_DELIVERY_WEEK":wb}, [])
+    return df, cfg, overrides, cal
+
+print(run_smokes(build_weekly_orders_smoke, seed_df_builder))
+
+proposed patch to 1 file (+38 -0)
+  └ C:\Users\nicol\OneDrive\Desktop\PITONISA2\app_strict.py
+    801
+    802   +def read_delivery_cfg(cfg: Dict, exceptions_rows: Optional[Iterable[Dict]] = None) -> DeliveryCalendar:
+    803   +    """Build DeliveryCalendar from simple dict cfg and optional exceptions rows.
+    804   +    cfg expects key 'CFG_DELIVERY_WEEK' as list of 7 ints [Mon..Sun].
+    805   +    exceptions_rows: iterable of dicts with keys 'Fecha' and 'Entrega' (0/1),
+    806   +    accepting dates in '%d/%m/%Y' or ISO 'YYYY-MM-DD'.
+    807   +    """
+    808   +    wb = cfg.get("CFG_DELIVERY_WEEK") if isinstance(cfg, dict) else None
+    809   +    if isinstance(wb, str):
+    810   +        try:
+    811   +            wb = [int(x.strip()) for x in wb.split(",")]
+    812   +        except Exception:
+    813   +            wb = None
+    814   +    if not (isinstance(wb, (list, tuple)) and len(wb) == 7):
+    815   +        wb = [1, 1, 1, 1, 1, 1, 1]
+    818   +        for r in exceptions_rows:
+    819   +            f = str(r.get("Fecha") or r.get("fecha") or "").strip()
+    820   +            v = r.get("Entrega") if "Entrega" in r else r.get("entrega")
+    821   +            if not f:
+    822   +                continue
+    823   +            d_iso = None
+    824   +            for fmt in (DATE_FMT, "%Y-%m-%d"):
+    825   +                try:
+    PY"
+ this time
+
+
+OK
+
+from app_patches.smoke_wrapper import build_weekly_orders_smoke as _core_calc
+
+def _to_calc_df(records):
+    # Convierte tu estructura (Q/xls/stock) a DataFrame mínimo
+    # Debe devolver columnas: fecha, esperado, stock_ini (solo la primera fila con SI real)
+    import pandas as pd
+    # TODO: reemplaza el mapeo según tus nombres reales
+    df = pd.DataFrame([{"fecha":r["Fecha"], "esperado":r["Esperado"], "stock_ini":None} for r in records])
+    df.loc[df.index.min(), "stock_ini"] = records[0]["Stock_ini_real"]
+    return df
+
+def _merge_results_back(df_calc, records):
+    # Escribe Pedido y Stock_fin de df_calc a tu estructura original
+    for i, r in enumerate(records):
+        r["Pedido"]    = int(df_calc.loc[i, "pedido"])
+        r["Stock_fin"] = float(df_calc.loc[i, "stock_fin"])
+        r["Stock_ini"] = float(df_calc.loc[i, "stock_ini"])
+
+def build_weekly_orders_adapter(records, cfg, overrides, calendar, enable_blocks=None):
+    """Adapter sin tocar tu firma real: convierte → calcula (núcleo probado) → vuelve a tu estructura."""
+    df = _to_calc_df(records)
+    df_res = _core_calc(df, cfg, overrides, calendar)
+- Calendario: pasá un DeliveryCalendar o read_delivery_cfg({...}, []); para forzar bloques, pon algún 0 en week_bits.
+- Overrides: overrides es dict ISO “YYYY-MM-DD” → float (target del día).
+
+- records: lista de dicts con Fecha, Esperado, y Stock_ini_real en el primero.
+- cfg: objeto con attrs CFG_TARGET, CFG_MULTIPLO, CFG_ENABLE_AM_COVERAGE, CFG_AM_FRAC.
+- calendar: read_delivery_cfg({"CFG_DELIVERY_WEEK":[1,0,1,1,1,1,1]}, []).
+
+res = build_weekly_orders_adapter(records, cfg, overrides, calendar)
+
+# records queda con Pedido, Stock_fin y Stock_ini completados
+
+Si querés, lo integro en app_strict.py como función auxiliar y te dejo un switch para usar “motor probado” vs. actual.
+def _sanity_pythonisa_v02(calc_fn, read_delivery_cfg):
+    import pandas as pd
+    esperado = [15,14,15,14,15,14,15]
+    records = [{"Fecha":f, "Esperado":e, "Stock_ini_real":11 if i==0 else None} for i,(f,e) in
+enumerate(zip(fechas,esperado))]
+    cal = read_delivery_cfg({"CFG_DELIVERY_WEEK":[1,1,1,1,1,1,1]}, [])
+    out = calc_fn(records, Cfg(), {}, cal, enable_blocks=None)
+    s = sum(r["Pedido"] for r in out)
+    assert s == 91, f"Esperado 91 y dio {s}"
+    return "sanity OK"
+
+Perfecto. Integro ese botón en la barra lateral:
+
+- Llamo export_manifest(cfg_actual, mode_actual, FORMULAS) y muestro el path con st.success.
+
+¿Lo agrego ahora al sidebar bajo los toggles y Guardar/Reset?
+
+user
+codex
+# 1) Añadí (arriba del archivo) la entrada del changelog
+printf "## 2025-08-30 — v0.2.0 (baseline, smokes OK)n- Cálculo diario y por bloques estabilizado.n- AM (d+1) y
+redondeo post-MAX(0) validados.n- Calendario 1/0 + EXC activo.n- Parseo D/M/YYYY y HH:MM estrictos.n- Smokes A–D OK
+(91/96/91/96).nn" | cat - CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+
+# 2) Commit de release
+
+# 3) Tag anotado
+git tag -a v0.2.0 -m "Baseline v0.2.0 (2025-08-30) — smokes OK"
+
+# 4) (Opcional) push si tenés remoto configurado
+# git push origin main && git push origin --tags
+
+# 5) Verificación rápida
+git tag -n
+git show --no-patch v0.2.0
+
+codex
+Voy a agregar la entrada al inicio de CHANGELOG.md. Luego, si querés, ejecuto los comandos git para commit y tag.
+
+
+
+patch approval decision: Approved
+
+✏️ Applying patch
+
+✓ Applied patch
+  └ Success. Updated the following files:
+codex
+git commit -m "chore(manifest): export sample for v0.2.0"
+
+
+✔ You approved codex to run
+    pwsh -NoLogo -NoProfile -Command '$code = @'"'
+    from app_patches.export_manifest import export_manifest, FORMULAS
+    cfg = {\"CFG_TARGET\":0,\"CFG_MULTIPLO\":6,\"CFG_ENABLE_AM_COVERAGE\":True,\"CFG_AM_FRAC\":0.5,\"CFG_ITEM_FILTER\":
+\"\",\"CFG_DELIVERY_WEEK\":[1,1,1,1,1,1,1]}
+    path = export_manifest(cfg, \"blocks-auto\", FORMULAS)
+  ✗ ⌨️ pwsh -NoLogo -NoProfile -Command 'git add manifest/sample.manifest.json; git commit -m "chore(manifest): export
+sample for v0.2.0"'
+    fatal: not a git repository (or any of the parent directories): .git
+    fatal: not a git repository (or any of the parent directories): .git
+
+codex
+- Manifest: manifest/sample.manifest.json
+- Git: no es un repositorio (git commit falló con “not a git repository”). Si querés, inicializo git y hago el commit/
+CHANGELOG.md
+    - Parseo D/M/YYYY y HH:MM estrictos.
+    - Smokes A–D OK (91/96/91/96).
+
+    "@; if (-not (Test-Path CHANGELOG.md)) { Set-Content -Path CHANGELOG.md -Value $entry -Encoding UTF8 } else
+{ $existing = Get-Content CHANGELOG.md -Raw; if ($existing -notmatch [regex]::Escape($header)) { Set-Content -Path
+CHANGELOG.md -Value ($entry + $existing) -Encoding UTF8 } }; git add .; git commit -m "chore(release): v0.2.0 baseline
+(smokes OK)"'
+ this time
+  ✓ ⌨️ pwsh -NoLogo -NoProfile -Command 'git init; git config user.name "PythonISA Bot"; git config user.email
+"pythonisaexample.com"; $header = "## 2025-08-30 — v0.2.0 (baseline, smokes OK)"; $entry = @"
+    - Calendario 1/0 + EXC activo.
+    - Parseo D/M/YYYY y HH:MM estrictos.
+CHANGELOG.md -Value ($entry + $existing) -Encoding UTF8 } }; git add .; git commit -m "chore(release): v0.2.0 baseline
+(smokes OK)"'
+
+codex
+Listo:
+
+- Repo git inicializado y configurado.
+- CHANGELOG.md asegurado con la entrada de v0.2.0 (baseline, smokes OK).
+- Commit creado: chore(release): v0.2.0 baseline (smokes OK).
+
+¿Creo el tag anotado v0.2.0 y lo muestro?
+
+user
+codex
+git tag -a v0.2.0 -m "Baseline v0.2.0 (2025-08-30) — smokes OK"
+git tag -n
+
+>_
+  ✓ ⌨️ pwsh -NoLogo -NoProfile -Command 'git tag -a v0.2.0 -m "Baseline v0.2.0 (2025-08-30) — smokes OK"; git tag -n; git
+show --no-patch v0.2.0'
+
+codex
+Tag creado y verificado:
+
+- git tag -n:
+v0.2.0  Baseline v0.2.0 (2025-08-30) — smokes OK
+v0.2.0  Baseline v0.2.0 (2025-08-30) — smokes OK
+-
+git show --no-patch v0.2.0:
+tag v0.2.0
+Tagger: PythonISA Bot <pythonisaexample.com>
+
+¿Hacemos push si tenés remoto, o seguimos con otra tarea?
+
+user
+codex
+# Reemplazá <URL> por tu repo
+# git push origin --tags
+
+codex
+¿Querés que apunte a tu remoto y haga el push? Si me pasás la URL, lo configuro.
+
+Comandos (remplazá ):
+
+- git branch -M main
+- git remote add origin
+- git push -u origin main
+- git push origin --tags
+
+git branch -M main
+git remote add origin <URL_DEL_REPO>
+
+>_
+  ✓ ⌨️ pwsh -NoLogo -NoProfile -Command 'git branch -M main; git branch --show-current'
+
+codex
+Rama renombrada a main.
+
+Para continuar necesito la URL real del repo para configurar el remoto y hacer el push:
+
+- git push -u origin main
+- git push origin --tags
+
+user
+https://github.com/nicolasvitale8-svg/PITONISA.git
+
+✔ You approved codex to run pwsh -NoLogo -NoProfile -Command 'git remote add origin https://github.com/
+nicolasvitale8-svg/PITONISA.git; git remote -v; git push -u origin main; git push origin --tags' this time
+
+>_
+  ✓ ⌨️ pwsh -NoLogo -NoProfile -Command 'git remote add origin https://github.com/nicolasvitale8-svg/PITONISA.git; git
+
+codex
+- Remoto: origin → https://github.com/nicolasvitale8-svg/PITONISA.git
+- Push rama: main upstream configurada y publicada.
+- Push tags: tag v0.2.0 publicado.
+user
+git remote add origin <URL_REAL>
+git push -u origin main
+git push origin --tags
+
+codex
+Hecho. Ya está configurado y publicado:
+
+- Remoto: origin → https://github.com/nicolasvitale8-svg/PITONISA.git
+- Rama: main con upstream a origin/main (push realizado)
+- Tags: v0.2.0 publicado
+
+git remote -v
+git tag -n
+git log --oneline --decorate -n 3
+
+
+>_
+origin https://github.com/nicolasvitale8-svg/PITONISA.git (push)
+origin https://github.com/nicolasvitale8-svg/PITONISA.git (push)
+-
+Tags:
+v0.2.0  Baseline v0.2.0 (2025-08-30) — smokes OK
+-
+Últimos commits:
+1c0b5da (HEAD -> main, tag: v0.2.0, origin/main) chore(release): v0.2.0 baseline (smokes OK)
+
+user
+git remote get-url --push --all origin
+git remote set-url --delete origin https://github.com/nicolasvitale8-svg/PITONISA.git
+# (si te quedó sin push, lo volvés a setear)
+git remote set-url --push origin https://github.com/nicolasvitale8-svg/PITONISA.git
+git remote -v
+
+✔ You approved codex to run pwsh -NoLogo -NoProfile -Command 'git remote get-url --push --all origin; git remote set-url
+--delete origin https://github.com/nicolasvitale8-svg/PITONISA.git; git remote set-url --push origin https://github.com/
+nicolasvitale8-svg/PITONISA.git; git remote -v' this time
+
+>_
+  ✓ ⌨️ pwsh -NoLogo -NoProfile -Command 'git remote get-url --push --all origin; git remote set-url --delete
+origin https://github.com/nicolasvitale8-svg/PITONISA.git; git remote set-url --push origin https://github.com/
+nicolasvitale8-svg/PITONISA.git; git remote -v'
+
+🖐  You've hit your usage limit. Upgrade to Pro (https://openai.com/chatgpt/pricing) or try again in 3 days 20 hours
+42 minutes.
 
 ▌ Explain this codebase
- ⏎ send   Ctrl+J newline   Ctrl+T transcript   Ctrl+C quit   669831 tokens used   71% context left
+ ⏎ send   Ctrl+J newline   Ctrl+T transcript   Ctrl+C quit   1461564 tokens used   59% context left
