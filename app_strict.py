@@ -298,6 +298,281 @@ with st.sidebar:
         help="Reemplaza ventas observadas por ventas imputadas al entrenar/KPI; no altera el cálculo de pedidos."
     )
     with st.form("cfg_form", clear_on_submit=False):
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+            except Exception:
+                week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        # Calendario semanal de entregas (CFG!B8:H8)
+        week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        try:
+            if _p.exists():
+                _cal = _read_delivery_calendar_from_excel(_read_bytes_retry(_p))
+                if _cal and _cal.week_bits and len(_cal.week_bits) == 7:
+                    week_bits_default = [1 if int(v) == 1 else 0 for v in _cal.week_bits]
+                else: # Ensure default if _cal is invalid
+                    week_bits_default = [1, 1, 1, 1, 1, 1, 1]
+        except Exception:
+            week_bits_default = [1, 1, 1, 1, 1, 1, 1]
         st.subheader("Calendario semanal de entregas")
         st.caption("1 = hay entrega; 0 = sin entrega")
         days_names = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
